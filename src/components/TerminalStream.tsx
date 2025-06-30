@@ -169,13 +169,13 @@ export default function TerminalStream({ onClose }: TerminalStreamProps) {
           borderBottom: '1px solid #808080'
         }}
       >
-        <span className="font-bold">青春は、バグだ。｜ ポカリスエット</span>
+        <span className="font-bold">青春はバグだ。｜ ポカリスエット</span>
         <div className="flex space-x-1">
           <div className="w-3 h-3 bg-gray-400" style={{ border: '1px outset #c0c0c0' }}></div>
           <div className="w-3 h-3 bg-gray-400" style={{ border: '1px outset #c0c0c0' }}></div>
           <button
             onClick={onClose}
-            className="w-3 h-3 bg-red-500 cursor-pointer flex items-center justify-center text-white font-bold hover:bg-red-600"
+            className="w-3 h-3 bg-gray-400 cursor-pointer flex items-center justify-center text-black font-bold hover:bg-gray-500"
             style={{ 
               border: '1px outset #c0c0c0',
               fontSize: '8px',

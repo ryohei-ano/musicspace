@@ -198,7 +198,7 @@ export default function Page() {
           textShadow: '1px 1px 2px rgba(0,0,0,0.5)'
         }}
       >
-        青春は、バグだ。
+        青春はバグだ。
       </h1>
 
       {/* ログインダイアログ */}
@@ -221,7 +221,7 @@ export default function Page() {
             borderBottom: '1px solid #808080'
           }}
         >
-          <span className="font-bold">青春は、バグだ。</span>
+          <span className="font-bold">青春はバグだ。</span>
           <div className="flex space-x-1">
             <div className="w-3 h-3 bg-gray-400" style={{ border: '1px outset #c0c0c0' }}></div>
             <div className="w-3 h-3 bg-gray-400" style={{ border: '1px outset #c0c0c0' }}></div>
@@ -259,11 +259,13 @@ export default function Page() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 w-5 h-5 cursor-pointer flex items-center justify-center text-xs"
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 w-5 cursor-pointer flex items-center justify-center text-xs"
               style={{
                 background: '#c0c0c0',
                 border: '1px outset #c0c0c0',
-                color: '#000000'
+                color: '#000000',
+                height: 'calc(100% - 8px)', // 入力フォームの高さより少し小さく
+                maxHeight: '28px' // 最大高さを制限
               }}
               onMouseDown={(e) => {
                 e.currentTarget.style.border = '1px inset #c0c0c0';

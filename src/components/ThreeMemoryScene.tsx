@@ -188,10 +188,29 @@ const videoFiles = [
 function SceneContent() {
   const [allMemories, setAllMemories] = useState<Memory[]>([]);
   const [displayedMemories, setDisplayedMemories] = useState<Memory[]>([]);
-  const [latestMemory, setLatestMemory] = useState<Memory | null>(null);
+  const [recentMemories, setRecentMemories] = useState<Memory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // 15秒以内かどうかを判定する関数
+  const isWithinFifteenSeconds = (createdAt: string) => {
+    const now = new Date();
+    const postTime = new Date(createdAt);
+    const diffInSeconds = (now.getTime() - postTime.getTime()) / 1000;
+    return diffInSeconds <= 15;
+  };
+
+  // 最新投稿用の特別な位置を生成（重ならないように円形配置）
+  const generateLatestPosition = (index: number, total: number): [number, number, number] => {
+    const radius = 8;
+    const angle = (index * Math.PI * 2) / Math.max(total, 1);
+    return [
+      Math.cos(angle) * radius,
+      Math.sin(angle) * radius * 0.5,
+      10 + index * 2
+    ];
+  };
 
   // ランダムにメモリを選択する関数（最適化版）
   const selectRandomMemories = (memories: Memory[], count: number = 30) => {
@@ -245,23 +264,25 @@ function SceneContent() {
           // 新しいメモリを全メモリリストに追加
           const newMemory = payload.new as Memory;
           
-          // 最新のメモリをカメラに一番近い位置に設定
-          setLatestMemory(newMemory);
+          // 新しいメモリを最新メモリリストに追加
+          setRecentMemories(prev => [...prev, newMemory]);
           
           setAllMemories(prev => {
             const updated = [...prev, newMemory];
             // 新しいランダム選択を実行（最新メモリ以外）
-            const randomMemories = selectRandomMemories(updated, 49); // 49個にして最新メモリ用のスペースを確保
-            setDisplayedMemories(randomMemories);
-            setRefreshKey(prev => prev + 1);
+            setDisplayedMemories(prevDisplayed => {
+              const randomMemories = selectRandomMemories(updated, 30);
+              setRefreshKey(prev => prev + 1);
+              return randomMemories;
+            });
             return updated;
           });
           
           // 15秒後に最新メモリを通常の位置に移動
           setTimeout(() => {
-            setLatestMemory(null);
+            setRecentMemories(prev => prev.filter(memory => memory.id !== newMemory.id));
             setRefreshKey(prev => prev + 1);
-          }, 15000);
+          }, 15000); // 15秒 = 15000ms
         }
       )
       .subscribe();
@@ -286,6 +307,23 @@ function SceneContent() {
       clearInterval(interval);
     };
   }, [allMemories]); // allMemoriesが変更された時のみ実行
+
+  // 15秒経過した最新投稿を自動的にクリーンアップ
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRecentMemories(prev => {
+        const filtered = prev.filter(memory => isWithinFifteenSeconds(memory.created_at));
+        if (filtered.length !== prev.length) {
+          setRefreshKey(prev => prev + 1);
+        }
+        return filtered;
+      });
+    }, 5000); // 5秒ごとにチェック
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, []);
 
   if (loading) {
     return <LoadingText />;
@@ -340,16 +378,16 @@ function SceneContent() {
       />
       
       {/* 最新のメモリをカメラに一番近い位置に表示 */}
-      {latestMemory && (
+      {recentMemories.map((memory, index) => (
         <MemoryText
-          key={`latest-${latestMemory.id}-${refreshKey}`}
-          memory={latestMemory}
-          position={[0, 0, 10]} // カメラにより近い位置
+          key={`recent-${memory.id}-${refreshKey}`}
+          memory={memory}
+          position={generateLatestPosition(index, recentMemories.length)}
           delay={0}
           scale={2.0} // より大きく表示
           isLatest={true} // 最新の投稿として緑色で表示
         />
-      )}
+      ))}
       
       {/* メモリテキストを3D空間に配置 */}
       {displayedMemories.map((memory: Memory, index: number) => (
@@ -361,14 +399,14 @@ function SceneContent() {
         />
       ))}
       
-      {/* 動画を3D空間にランダム配置 */}
+      {/* 動画を3D空間にランダム配置（12個全て表示） */}
       {videoFiles.map((videoSrc, index) => (
         <VideoPlane
           key={`video-${index}`}
           videoSrc={videoSrc}
           position={generateVideoPosition(index)}
-          delay={index * 200} // 動画独自の表示タイミング
-          scale={1.0} // 通常サイズで表示
+          delay={index * 300} // 0.3秒ずつ段階的に表示
+          scale={0.8} // サイズを小さくしてパフォーマンス向上
         />
       ))}
       

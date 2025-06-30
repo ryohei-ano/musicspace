@@ -19,24 +19,24 @@ const dotGothic = DotGothic16({
 });
 
 export const metadata: Metadata = {
-  title: "青春は、バグだ。｜ ポカリスエット｜大塚製薬",
-  description: "青春は、バグだ。ポカリスエットの特設サイト。あなたの青春の記憶を3D空間に投稿しよう。",
+  title: "青春はバグだ。｜ ポカリスエット｜大塚製薬",
+  description: "青春はバグだ。ポカリスエットの特設サイト。あなたの青春の記憶を3D空間に投稿しよう。",
   keywords: "ポカリスエット,大塚製薬,青春,バグ,3D,メモリー,投稿",
   authors: [{ name: "大塚製薬" }],
   creator: "大塚製薬",
   publisher: "大塚製薬",
   openGraph: {
-    title: "青春は、バグだ。｜ ポカリスエット｜大塚製薬",
-    description: "青春は、バグだ。ポカリスエットの特設サイト。あなたの青春の記憶を3D空間に投稿しよう。",
+    title: "青春はバグだ。｜ ポカリスエット｜大塚製薬",
+    description: "青春はバグだ。ポカリスエットの特設サイト。あなたの青春の記憶を3D空間に投稿しよう。",
     url: "https://pocari-youth-is-glitch.vercel.app",
-    siteName: "青春は、バグだ。",
+    siteName: "青春はバグだ。",
     locale: "ja_JP",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "青春は、バグだ。｜ ポカリスエット｜大塚製薬",
-    description: "青春は、バグだ。ポカリスエットの特設サイト。あなたの青春の記憶を3D空間に投稿しよう。",
+    title: "青春はバグだ。｜ ポカリスエット｜大塚製薬",
+    description: "青春はバグだ。ポカリスエットの特設サイト。あなたの青春の記憶を3D空間に投稿しよう。",
     creator: "@pocarisweat_jp",
   },
   robots: {

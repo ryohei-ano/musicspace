@@ -16,7 +16,6 @@ interface Memory {
 // 大量のテキストが重ならないように3D座標を生成する関数
 const generateRandomPosition = (index: number): [number, number, number] => {
   // 複数の層に分けて配置
-  const layerCount = 5; // 5つの層に分ける
   const itemsPerLayer = 10; // 各層に10個
   const currentLayer = Math.floor(index / itemsPerLayer);
   const indexInLayer = index % itemsPerLayer;
@@ -162,7 +161,7 @@ function SceneContent() {
       clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, [allMemories.length]);
+  }, [allMemories]);
 
   if (loading) {
     return <LoadingText />;

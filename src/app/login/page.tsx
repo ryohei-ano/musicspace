@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 export default function Page() {
   const router = useRouter();
   const [pass, setPass] = useState('');
-  const [auth, setAuth] = useState(false);
 
   useEffect(() => {
     const ok = localStorage.getItem('auth') === '1';
@@ -14,7 +13,6 @@ export default function Page() {
       router.push('/space');
       return;
     }
-    setAuth(false);
   }, [router]);
 
   const submit = () => {

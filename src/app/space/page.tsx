@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import TerminalStream from '@/components/TerminalStream';
 import ThreeMemoryScene from '@/components/ThreeMemoryScene';
-import { Button } from '@/components/ui/button';
 
 export default function Page() {
   const router = useRouter();

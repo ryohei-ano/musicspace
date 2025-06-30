@@ -10,6 +10,13 @@ interface Message {
   type: 'system' | 'user' | 'success' | 'error';
 }
 
+interface Memory {
+  id: number;
+  memory: string;
+  created_at: string;
+  memory_id: string;
+}
+
 export default function TerminalStream() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -45,7 +52,7 @@ export default function TerminalStream() {
     // Supabase接続テスト
     const testConnection = async () => {
       try {
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from('memories')
           .select('count', { count: 'exact', head: true });
         
@@ -67,7 +74,7 @@ export default function TerminalStream() {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'memories' },
         (payload) => {
-          const newMemory = payload.new as any;
+          const newMemory = payload.new as Memory;
           addMessage(
             `New memory posted: "${newMemory.memory}" [ID: undefined]`,
             'system'
@@ -119,8 +126,9 @@ export default function TerminalStream() {
       } else {
         addMessage(`✓ Posted [ID: undefined]`, 'success');
       }
-    } catch (error: any) {
-      addMessage(`✗ Error: ${error.message}`, 'error');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      addMessage(`✗ Error: ${errorMessage}`, 'error');
     } finally {
       setIsSubmitting(false);
       setInputValue('');

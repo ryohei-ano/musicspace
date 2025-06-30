@@ -447,6 +447,7 @@ function SceneContent() {
 export default function ThreeMemoryScene() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isScreenshotMode, setIsScreenshotMode] = useState(false);
+  const [userInteracted, setUserInteracted] = useState(false);
 
   // スクリーンショット機能
   const takeScreenshot = async () => {
@@ -472,10 +473,10 @@ export default function ThreeMemoryScene() {
           throw new Error('Canvas context not available');
         }
 
-        // インスタストーリーズのような縦長の3:4（縦長）でcanvasサイズを設定
+        // インスタストーリーズのような縦長の3:4（縦長）でcanvasサイズを設定（2倍解像度）
         const aspectRatio = 3 / 4; // 縦長の比率
-        const baseHeight = 1200; // 高解像度の基準高さ
-        compositeCanvas.width = baseHeight * aspectRatio; // 900px (3:4比率)
+        const baseHeight = 2400; // 高解像度の基準高さ（2倍）
+        compositeCanvas.width = baseHeight * aspectRatio; // 1800px (3:4比率)
         compositeCanvas.height = baseHeight;
 
         // 背景色を設定
@@ -508,18 +509,18 @@ export default function ThreeMemoryScene() {
           // アスペクト比を保持して描画
           ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
 
-          // ポカリロゴを描画
+          // ポカリロゴを描画（高解像度対応）
           const logo = new Image();
           logo.onload = () => {
-            const logoSize = window.innerWidth < 640 ? 48 : 64;
-            ctx.drawImage(logo, 16, 16, logoSize, logoSize * (logo.height / logo.width));
+            const logoSize = window.innerWidth < 640 ? 96 : 128; // 2倍サイズ
+            ctx.drawImage(logo, 32, 32, logoSize, logoSize * (logo.height / logo.width)); // 位置も2倍
 
-            // ハッシュタグを描画
+            // ハッシュタグを描画（高解像度対応）
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 18px Arial, sans-serif';
+            ctx.font = 'bold 36px Arial, sans-serif'; // フォントサイズ2倍
             ctx.textAlign = 'right';
             ctx.textBaseline = 'bottom';
-            ctx.fillText('#青春はバグだ。', compositeCanvas.width - 16, compositeCanvas.height - 16);
+            ctx.fillText('#青春はバグだ。', compositeCanvas.width - 32, compositeCanvas.height - 32); // マージンも2倍
 
             // 最終的なデータURLを取得
             const finalDataURL = compositeCanvas.toDataURL('image/png', 1.0);
@@ -549,12 +550,12 @@ export default function ThreeMemoryScene() {
           logo.onerror = () => {
             console.warn('Logo failed to load, proceeding without logo');
             
-            // ハッシュタグのみ描画
+            // ハッシュタグのみ描画（高解像度対応）
             ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 18px Arial, sans-serif';
+            ctx.font = 'bold 36px Arial, sans-serif'; // フォントサイズ2倍
             ctx.textAlign = 'right';
             ctx.textBaseline = 'bottom';
-            ctx.fillText('#青春はバグだ。', compositeCanvas.width - 16, compositeCanvas.height - 16);
+            ctx.fillText('#青春はバグだ。', compositeCanvas.width - 32, compositeCanvas.height - 32); // マージンも2倍
 
             const finalDataURL = compositeCanvas.toDataURL('image/png', 1.0);
             setIsScreenshotMode(false);
@@ -585,6 +586,47 @@ export default function ThreeMemoryScene() {
       }
     }, 500);
   };
+
+  // モバイル動画再生のためのユーザーインタラクションハンドラー
+  useEffect(() => {
+    const handleUserInteraction = () => {
+      if (!userInteracted) {
+        setUserInteracted(true);
+        // すべての動画要素を取得して再生を試行
+        const videos = document.querySelectorAll('video');
+        videos.forEach(async (video) => {
+          try {
+            if (video.paused) {
+              await video.play();
+              console.log('Video started after user interaction');
+            }
+          } catch (error) {
+            console.warn('Video play after interaction failed:', error);
+          }
+        });
+        
+        // カスタムイベントを発火して VideoPlane コンポーネントに通知
+        const event = new CustomEvent('userInteractionDetected');
+        window.dispatchEvent(event);
+      }
+    };
+
+    // 様々なユーザーインタラクションイベントをリッスン
+    const interactionEvents = ['touchstart', 'touchend', 'click', 'keydown', 'mousedown'];
+    
+    interactionEvents.forEach(eventType => {
+      document.addEventListener(eventType, handleUserInteraction, { 
+        once: false, 
+        passive: true 
+      });
+    });
+
+    return () => {
+      interactionEvents.forEach(eventType => {
+        document.removeEventListener(eventType, handleUserInteraction);
+      });
+    };
+  }, [userInteracted]);
 
   // スクリーンショットイベントリスナー
   useEffect(() => {

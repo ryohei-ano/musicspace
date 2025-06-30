@@ -61,10 +61,51 @@ export default function Page() {
       {/* 背景動画 */}
       {backgroundVideo && (
         <video
-          autoPlay
+          ref={(video) => {
+            if (video) {
+              // モバイル対応の動画設定
+              video.muted = true;
+              video.playsInline = true;
+              video.loop = true;
+              video.setAttribute('playsinline', 'true');
+              video.setAttribute('webkit-playsinline', 'true');
+              video.setAttribute('muted', 'true');
+              
+              // 動画の読み込み完了後に再生を試行
+              const tryPlay = async () => {
+                try {
+                  await video.play();
+                } catch (error) {
+                  console.warn('Background video autoplay failed:', error);
+                  // 自動再生に失敗した場合、ユーザーインタラクション後に再生
+                  const handleUserInteraction = async () => {
+                    try {
+                      await video.play();
+                      document.removeEventListener('touchstart', handleUserInteraction);
+                      document.removeEventListener('click', handleUserInteraction);
+                      document.removeEventListener('keydown', handleUserInteraction);
+                    } catch (e) {
+                      console.warn('Video play after interaction failed:', e);
+                    }
+                  };
+                  
+                  document.addEventListener('touchstart', handleUserInteraction, { once: true });
+                  document.addEventListener('click', handleUserInteraction, { once: true });
+                  document.addEventListener('keydown', handleUserInteraction, { once: true });
+                }
+              };
+              
+              if (video.readyState >= 3) {
+                tryPlay();
+              } else {
+                video.addEventListener('canplay', tryPlay, { once: true });
+              }
+            }
+          }}
           muted
           loop
           playsInline
+          preload="metadata"
           className="absolute inset-0 w-full h-full object-cover"
           style={{ zIndex: 0 }}
         >

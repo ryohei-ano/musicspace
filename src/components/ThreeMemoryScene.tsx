@@ -5,6 +5,7 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stars, Text } from '@react-three/drei';
 import { supabase } from '@/lib/supabase';
 import MemoryText from './MemoryText';
+import VideoPlane from './VideoPlane';
 
 interface Memory {
   id: number;
@@ -20,8 +21,8 @@ const generateRandomPosition = (index: number): [number, number, number] => {
   const currentLayer = Math.floor(index / itemsPerLayer);
   const indexInLayer = index % itemsPerLayer;
   
-  // 各層の基本半径
-  const baseRadius = 12 + (currentLayer * 8); // 12, 20, 28, 36, 44...
+  // 各層の基本半径（カメラから見えやすいように調整）
+  const baseRadius = 8 + (currentLayer * 6); // 8, 14, 20, 26, 32...
   
   // フィボナッチ螺旋を使用して均等分布
   const goldenAngle = Math.PI * (3 - Math.sqrt(5)); // 黄金角
@@ -33,14 +34,14 @@ const generateRandomPosition = (index: number): [number, number, number] => {
   const y = baseRadius * Math.cos(phi);
   const z = baseRadius * Math.sin(phi) * Math.sin(theta);
   
-  // Y座標を調整（カメラの初期位置[0,0,20]から見て被らないように）
-  const adjustedY = y * 0.4 + (Math.random() - 0.5) * 6; // Y座標を圧縮
+  // Y座標を調整（カメラの初期位置[0,0,30]から見て被らないように）
+  const adjustedY = y * 0.3 + (Math.random() - 0.5) * 4; // Y座標をさらに圧縮
   
-  // Z座標を調整（カメラの前後に配置）
-  const adjustedZ = z + (Math.random() - 0.5) * 10; // Z軸方向にも分散
+  // Z座標を調整（カメラの前方により多く配置）
+  const adjustedZ = z * 0.7 + (Math.random() - 0.5) * 8; // Z軸方向の範囲を狭める
   
   // 追加のランダム性（重複を避けるため）
-  const randomOffset = 1.5;
+  const randomOffset = 1.0;
   const offsetX = (Math.random() - 0.5) * randomOffset;
   const offsetY = (Math.random() - 0.5) * randomOffset;
   const offsetZ = (Math.random() - 0.5) * randomOffset;
@@ -62,6 +63,66 @@ function LoadingText() {
     </Text>
   );
 }
+
+// 動画専用の配置関数（さらに散らばった配置、固定位置）
+const generateVideoPosition = (index: number): [number, number, number] => {
+  // シード値を使って固定位置を生成（再読込時も同じ位置）
+  const seed = index * 12345;
+  const random1 = Math.sin(seed) * 10000;
+  const random2 = Math.sin(seed * 1.1) * 10000;
+  const random3 = Math.sin(seed * 1.2) * 10000;
+  const seededRandom1 = random1 - Math.floor(random1);
+  const seededRandom2 = random2 - Math.floor(random2);
+  const seededRandom3 = random3 - Math.floor(random3);
+  
+  // より散らばった配置
+  const itemsPerLayer = 4; // 各層に4個（さらに散らばらせる）
+  const currentLayer = Math.floor(index / itemsPerLayer);
+  const indexInLayer = index % itemsPerLayer;
+  
+  // さらに広い範囲に配置
+  const baseRadius = 4 + (currentLayer * 6); // 4, 10, 16, 22...
+  
+  // フィボナッチ螺旋を使用して均等分布
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5)); // 黄金角
+  const theta = indexInLayer * goldenAngle;
+  const phi = Math.acos(1 - 2 * (indexInLayer + 0.5) / itemsPerLayer);
+  
+  // 球面座標から直交座標への変換
+  const x = baseRadius * Math.sin(phi) * Math.cos(theta);
+  const y = baseRadius * Math.cos(phi);
+  const z = baseRadius * Math.sin(phi) * Math.sin(theta);
+  
+  // Y座標を調整（さらに縦方向に散らばらせる）
+  const adjustedY = y * 0.6 + (seededRandom1 - 0.5) * 6;
+  
+  // Z座標を調整（前後にさらに散らばらせる）
+  const adjustedZ = z * 1.0 + (seededRandom2 - 0.5) * 8;
+  
+  // 追加のランダム性を増加（固定シード使用）
+  const randomOffset = 2.0;
+  const offsetX = (seededRandom3 - 0.5) * randomOffset;
+  const offsetY = (seededRandom1 - 0.5) * randomOffset;
+  const offsetZ = (seededRandom2 - 0.5) * randomOffset;
+  
+  return [x + offsetX, adjustedY + offsetY, adjustedZ + offsetZ];
+};
+
+// 動画ファイルのリスト
+const videoFiles = [
+  '/video/01.mp4',
+  '/video/02.mp4',
+  '/video/03.mp4',
+  '/video/04.mp4',
+  '/video/05.mp4',
+  '/video/06.mp4',
+  '/video/07.mp4',
+  '/video/08.mp4',
+  '/video/09.mp4',
+  '/video/10.mp4',
+  '/video/11.mp4',
+  '/video/12.mp4'
+];
 
 // シーンの内容
 function SceneContent() {
@@ -237,6 +298,17 @@ function SceneContent() {
           memory={memory}
           position={generateRandomPosition(index)}
           delay={index * 50} // 50msずつずらしてアニメーション開始（高速化）
+        />
+      ))}
+      
+      {/* 動画を3D空間にランダム配置 */}
+      {videoFiles.map((videoSrc, index) => (
+        <VideoPlane
+          key={`video-${index}`}
+          videoSrc={videoSrc}
+          position={generateVideoPosition(index)}
+          delay={index * 200} // 動画独自の表示タイミング
+          scale={1.0} // 通常サイズで表示
         />
       ))}
       

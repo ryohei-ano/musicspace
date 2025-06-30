@@ -136,47 +136,100 @@ export default function TerminalStream() {
     }
   };
 
-  const getMessageColor = (type: Message['type']) => {
+  const getMessageColorWin2k = (type: Message['type']) => {
     switch (type) {
-      case 'system': return 'text-white';
-      case 'user': return 'text-white';
-      case 'success': return 'text-green-400';
-      case 'error': return 'text-red-400';
-      default: return 'text-white';
+      case 'system': return '#000080'; // ダークブルー
+      case 'user': return '#000000'; // ブラック
+      case 'success': return '#008000'; // ダークグリーン
+      case 'error': return '#800000'; // ダークレッド
+      default: return '#000000';
     }
   };
 
   return (
-    <div className="w-full bg-black text-white p-3 sm:p-4 rounded-lg font-mono h-48 sm:h-64 flex flex-col">
-      <div className="mb-2 text-xs sm:text-sm">
-        <span className="text-gray-500">$</span> memory_terminal
+    <div 
+      className="w-full font-mono h-48 sm:h-64 flex flex-col"
+      style={{
+        background: '#c0c0c0',
+        border: '2px outset #c0c0c0',
+        borderRadius: '0',
+        boxShadow: 'inset -1px -1px #808080, inset 1px 1px #dfdfdf, inset -2px -2px #808080, inset 2px 2px #dfdfdf'
+      }}
+    >
+      {/* タイトルバー */}
+      <div 
+        className="flex items-center justify-between px-2 py-1 text-xs sm:text-sm"
+        style={{
+          background: 'linear-gradient(90deg, #0a246a 0%, #a6caf0 100%)',
+          color: 'white',
+          borderBottom: '1px solid #808080'
+        }}
+      >
+        <span className="font-bold">青春は、バグだ。</span>
+        <div className="flex space-x-1">
+          <div className="w-3 h-3 bg-gray-400" style={{ border: '1px outset #c0c0c0' }}></div>
+          <div className="w-3 h-3 bg-gray-400" style={{ border: '1px outset #c0c0c0' }}></div>
+          <div className="w-3 h-3 bg-red-500" style={{ border: '1px outset #c0c0c0' }}></div>
+        </div>
       </div>
       
       {/* メッセージ表示エリア */}
-      <div className="flex-1 overflow-y-auto space-y-1 mb-2">
+      <div 
+        className="flex-1 overflow-y-auto space-y-1 p-2"
+        style={{
+          background: 'white',
+          border: '1px inset #c0c0c0',
+          margin: '2px'
+        }}
+      >
         {messages.map((message) => (
-          <div key={message.id} className={`text-xs sm:text-sm ${getMessageColor(message.type)} break-words`}>
-            <span className="text-gray-500">[{message.timestamp}]</span> {message.text}
+          <div key={message.id} className={`text-xs sm:text-sm break-words`} style={{ color: getMessageColorWin2k(message.type) }}>
+            <span style={{ color: '#808080' }}>[{message.timestamp}]</span> {message.text}
           </div>
         ))}
         <div ref={messagesEndRef} />
       </div>
       
       {/* 入力エリア */}
-      <form onSubmit={handleSubmit} className="flex items-center">
-        <span className="text-gray-500 mr-1 text-xs sm:text-sm">$</span>
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          placeholder="Enter your memory..."
-          disabled={isSubmitting}
-          className="w-full bg-transparent text-white outline-none placeholder-gray-600 text-xs sm:text-sm py-1"
-          autoFocus
-        />
-        {isSubmitting && <span className="text-yellow-400 ml-2 text-xs sm:text-sm">Posting...</span>}
-      </form>
+      <div 
+        className="p-2"
+        style={{
+          background: '#c0c0c0',
+          borderTop: '1px solid #808080'
+        }}
+      >
+        <form onSubmit={handleSubmit} className="flex items-center space-x-2">
+          <span className="text-xs sm:text-sm" style={{ color: '#000000' }}>$</span>
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="Enter your memory..."
+            disabled={isSubmitting}
+            className="flex-1 px-2 py-1 text-xs sm:text-sm"
+            style={{
+              fontSize: '16px', // iOS Safari ズーム防止
+              WebkitAppearance: 'none',
+              borderRadius: 0,
+              background: 'white',
+              border: '1px inset #c0c0c0',
+              color: '#000000',
+              outline: 'none'
+            }}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck="false"
+            autoFocus
+          />
+          {isSubmitting && (
+            <span className="text-xs sm:text-sm" style={{ color: '#000080' }}>
+              Posting...
+            </span>
+          )}
+        </form>
+      </div>
     </div>
   );
 }

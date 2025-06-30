@@ -69,7 +69,7 @@ export default function Page() {
       
       {/* ターミナル（オプション表示） */}
       {showTerminal && (
-        <div className="absolute bottom-4 left-2 right-2 sm:left-4 sm:right-4 max-h-48 sm:max-h-64 bg-black bg-opacity-90 rounded-lg p-2 sm:p-4 z-10">
+        <div className="absolute bottom-4 left-2 right-2 sm:left-4 sm:right-4 max-h-48 sm:max-h-64 z-10">
           <TerminalStream />
         </div>
       )}

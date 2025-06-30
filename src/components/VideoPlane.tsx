@@ -17,7 +17,6 @@ export default function VideoPlane({ videoSrc, position, delay, scale = 1 }: Vid
   const [videoTexture, setVideoTexture] = useState<THREE.VideoTexture | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     // 動画要素を事前に作成して読み込み開始
@@ -38,7 +37,6 @@ export default function VideoPlane({ videoSrc, position, delay, scale = 1 }: Vid
     // エラーハンドリング
     const handleError = (error: Event) => {
       console.error('Video loading error:', error);
-      setHasError(true);
     };
 
     // 動画が読み込まれたらテクスチャを作成
@@ -53,7 +51,6 @@ export default function VideoPlane({ videoSrc, position, delay, scale = 1 }: Vid
         setIsLoaded(true);
       } catch (error) {
         console.error('Video texture creation failed:', error);
-        setHasError(true);
       }
     };
 
@@ -102,14 +99,20 @@ export default function VideoPlane({ videoSrc, position, delay, scale = 1 }: Vid
       video.removeEventListener('loadeddata', handleLoadedData);
       video.removeEventListener('canplay', handleCanPlay);
       video.removeEventListener('error', handleError);
-      if (videoTexture) {
-        videoTexture.dispose();
-      }
       video.pause();
       video.src = '';
       video.load(); // リソースを完全にクリア
     };
   }, [videoSrc, delay]);
+
+  // videoTextureのクリーンアップを別のuseEffectで管理
+  useEffect(() => {
+    return () => {
+      if (videoTexture) {
+        videoTexture.dispose();
+      }
+    };
+  }, [videoTexture]);
 
   // アニメーション（フェードイン効果）
   useFrame((state) => {

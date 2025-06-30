@@ -86,12 +86,24 @@ export default function Page() {
             console.log('Logout clicked');
             logout();
           }}
-          className="px-4 py-3 sm:px-4 sm:py-2 text-white border border-white rounded-md hover:bg-white hover:text-black transition-colors duration-150 active:scale-95 text-sm sm:text-base min-h-[44px] sm:min-h-auto cursor-pointer"
+          className="px-4 py-3 sm:px-4 sm:py-2 text-sm sm:text-base min-h-[44px] sm:min-h-auto cursor-pointer"
           style={{ 
             pointerEvents: 'auto',
             position: 'relative',
             zIndex: 9999,
-            backgroundColor: 'transparent'
+            background: '#c0c0c0',
+            border: '2px outset #c0c0c0',
+            color: '#000000',
+            borderRadius: 0
+          }}
+          onMouseDown={(e) => {
+            e.currentTarget.style.border = '2px inset #c0c0c0';
+          }}
+          onMouseUp={(e) => {
+            e.currentTarget.style.border = '2px outset #c0c0c0';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.border = '2px outset #c0c0c0';
           }}
         >
           ログアウト
@@ -102,12 +114,24 @@ export default function Page() {
             e.stopPropagation();
             setShowTerminal(!showTerminal);
           }}
-          className="px-4 py-3 sm:px-4 sm:py-2 text-white border border-white rounded-md hover:bg-white hover:text-black transition-colors duration-150 active:scale-95 text-sm sm:text-base min-h-[44px] sm:min-h-auto whitespace-nowrap cursor-pointer"
+          className="px-4 py-3 sm:px-4 sm:py-2 text-sm sm:text-base min-h-[44px] sm:min-h-auto whitespace-nowrap cursor-pointer"
           style={{ 
             pointerEvents: 'auto',
             position: 'relative',
             zIndex: 9999,
-            backgroundColor: 'transparent'
+            background: '#c0c0c0',
+            border: '2px outset #c0c0c0',
+            color: '#000000',
+            borderRadius: 0
+          }}
+          onMouseDown={(e) => {
+            e.currentTarget.style.border = '2px inset #c0c0c0';
+          }}
+          onMouseUp={(e) => {
+            e.currentTarget.style.border = '2px outset #c0c0c0';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.border = '2px inset #c0c0c0';
           }}
         >
           {showTerminal ? 'ターミナルを隠す' : 'ターミナルを表示'}

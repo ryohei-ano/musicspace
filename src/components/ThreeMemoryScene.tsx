@@ -51,16 +51,76 @@ const generateRandomPosition = (index: number): [number, number, number] => {
 
 // ローディング表示コンポーネント
 function LoadingText() {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 100) {
+          return 0; // リセットして繰り返し
+        }
+        return prev + 2; // 2%ずつ増加
+      });
+    }, 50); // 50ms間隔
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // プログレスに基づいてバーの幅を計算
+  const barWidth = (progress / 100) * 3.6; // 最大3.6の幅
+  const barPosition = -1.8 + (barWidth / 2); // 左端から開始
+
   return (
-    <Text
-      position={[0, 0, 0]}
-      fontSize={1}
-      color="#ffffff"
-      anchorX="center"
-      anchorY="middle"
-    >
-      Loading memories...
-    </Text>
+    <group position={[0, 0, 0]}>
+      {/* Loading text */}
+      <Text
+        position={[0, 1, 0]}
+        fontSize={0.5}
+        color="#ffffff"
+        anchorX="center"
+        anchorY="middle"
+      >
+        Loading...
+      </Text>
+      
+      {/* Loading bar background (outer border) */}
+      <mesh position={[0, 0, 0]}>
+        <boxGeometry args={[4, 0.4, 0.1]} />
+        <meshBasicMaterial color="#ffffff" />
+      </mesh>
+      
+      {/* Loading bar background (inner) - transparent */}
+      <mesh position={[0, 0, 0.05]}>
+        <boxGeometry args={[3.8, 0.3, 0.1]} />
+        <meshBasicMaterial transparent opacity={0} />
+      </mesh>
+      
+      {/* Loading bar fill - animated */}
+      {barWidth > 0 && (
+        <mesh position={[barPosition, 0, 0.1]}>
+          <boxGeometry args={[barWidth, 0.2, 0.1]} />
+          <meshBasicMaterial color="#ffffff" />
+        </mesh>
+      )}
+      
+      {/* Progress segments (8-bit style) */}
+      {Array.from({ length: 10 }, (_, i) => {
+        const segmentProgress = (progress - i * 10) / 10;
+        const segmentOpacity = Math.max(0, Math.min(1, segmentProgress));
+        const segmentX = -1.6 + (i * 0.36);
+        
+        return segmentOpacity > 0 ? (
+          <mesh key={i} position={[segmentX, 0, 0.15]}>
+            <boxGeometry args={[0.3, 0.15, 0.05]} />
+            <meshBasicMaterial 
+              color="#ffffff" 
+              transparent 
+              opacity={segmentOpacity}
+            />
+          </mesh>
+        ) : null;
+      })}
+    </group>
   );
 }
 

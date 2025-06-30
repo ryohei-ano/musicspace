@@ -55,16 +55,22 @@ export default function VideoPlane({ videoSrc, position, delay, scale = 1 }: Vid
       if (textureCreated) return;
       
       try {
-        const texture = new THREE.VideoTexture(video);
-        texture.minFilter = THREE.LinearFilter;
-        texture.magFilter = THREE.LinearFilter;
-        texture.format = THREE.RGBAFormat;
-        texture.flipY = false;
-        texture.generateMipmaps = false; // パフォーマンス向上
-        setVideoTexture(texture);
-        setIsLoaded(true);
-        textureCreated = true;
-        console.log('Video texture created for:', videoSrc);
+        // 動画が実際に再生可能な状態になってからテクスチャを作成
+        if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+          const texture = new THREE.VideoTexture(video);
+          texture.minFilter = THREE.LinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+          texture.format = THREE.RGBAFormat;
+          texture.flipY = true; // モバイルでの上下反転を修正
+          texture.generateMipmaps = false;
+          texture.needsUpdate = true;
+          setVideoTexture(texture);
+          setIsLoaded(true);
+          textureCreated = true;
+          console.log('Video texture created for:', videoSrc, 'Size:', video.videoWidth, 'x', video.videoHeight);
+        } else {
+          console.log('Video not ready yet, waiting...', videoSrc);
+        }
       } catch (error) {
         console.error('Video texture creation failed:', error);
       }
@@ -84,6 +90,11 @@ export default function VideoPlane({ videoSrc, position, delay, scale = 1 }: Vid
           if (playPromise !== undefined) {
             await playPromise;
             console.log('Video playing successfully:', videoSrc);
+            
+            // 再生開始後にテクスチャを作成（黒い画面を避ける）
+            if (!textureCreated && video.videoWidth > 0 && video.videoHeight > 0) {
+              handleLoadedData();
+            }
           }
         }
       } catch (error) {
@@ -94,12 +105,27 @@ export default function VideoPlane({ videoSrc, position, delay, scale = 1 }: Vid
 
     const handleCanPlay = () => {
       console.log('Video can play:', videoSrc);
-      tryPlay();
+      // 少し遅延してから再生を試行（黒い画面を避ける）
+      setTimeout(() => {
+        tryPlay();
+      }, 100);
     };
 
     const handleLoadedMetadata = () => {
       console.log('Video metadata loaded:', videoSrc);
+      // メタデータ読み込み後は即座に試行
       tryPlay();
+    };
+
+    // 動画が実際に再生開始されたときのハンドラー
+    const handlePlaying = () => {
+      console.log('Video actually playing:', videoSrc);
+      // 再生開始後にテクスチャを作成
+      if (!textureCreated && video.videoWidth > 0 && video.videoHeight > 0) {
+        setTimeout(() => {
+          handleLoadedData();
+        }, 50); // 少し遅延してテクスチャ作成
+      }
     };
 
     // グローバルなユーザーインタラクションハンドラー
@@ -119,6 +145,7 @@ export default function VideoPlane({ videoSrc, position, delay, scale = 1 }: Vid
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
     video.addEventListener('canplay', handleCanPlay);
     video.addEventListener('canplaythrough', tryPlay);
+    video.addEventListener('playing', handlePlaying); // 実際の再生開始時
     video.addEventListener('error', handleError);
     video.addEventListener('loadstart', () => console.log('Video load started:', videoSrc));
 
@@ -157,6 +184,7 @@ export default function VideoPlane({ videoSrc, position, delay, scale = 1 }: Vid
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
       video.removeEventListener('canplay', handleCanPlay);
       video.removeEventListener('canplaythrough', tryPlay);
+      video.removeEventListener('playing', handlePlaying);
       video.removeEventListener('error', handleError);
       
       interactionEvents.forEach(eventType => {

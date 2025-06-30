@@ -37,7 +37,7 @@ export default function PasswordGate({
   return (
     <div className="flex flex-col items-center p-10 gap-4">
       <Input
-        placeholder="パスワードを入力"
+        placeholder="Enter your passcode"
         value={pass}
         onChange={(e) => setPass(e.target.value)}
       />

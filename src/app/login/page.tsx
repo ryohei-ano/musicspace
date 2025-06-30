@@ -275,7 +275,7 @@ export default function Page() {
             className="block mb-2 text-sm"
             style={{ color: '#000000' }}
           >
-            パスワード:
+            Passcode:
           </label>
           <div className="mb-4">
             <input

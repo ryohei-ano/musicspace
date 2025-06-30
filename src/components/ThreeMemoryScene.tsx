@@ -1,0 +1,290 @@
+'use client';
+
+import { useState, useEffect, Suspense } from 'react';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, Stars, Text } from '@react-three/drei';
+import { supabase } from '@/lib/supabase';
+import MemoryText from './MemoryText';
+
+interface Memory {
+  id: number;
+  memory: string;
+  created_at: string;
+  memory_id: string;
+}
+
+// 大量のテキストが重ならないように3D座標を生成する関数
+const generateRandomPosition = (index: number): [number, number, number] => {
+  // 複数の層に分けて配置
+  const layerCount = 5; // 5つの層に分ける
+  const itemsPerLayer = 10; // 各層に10個
+  const currentLayer = Math.floor(index / itemsPerLayer);
+  const indexInLayer = index % itemsPerLayer;
+  
+  // 各層の基本半径
+  const baseRadius = 12 + (currentLayer * 8); // 12, 20, 28, 36, 44...
+  
+  // フィボナッチ螺旋を使用して均等分布
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5)); // 黄金角
+  const theta = indexInLayer * goldenAngle;
+  const phi = Math.acos(1 - 2 * (indexInLayer + 0.5) / itemsPerLayer);
+  
+  // 球面座標から直交座標への変換
+  const x = baseRadius * Math.sin(phi) * Math.cos(theta);
+  const y = baseRadius * Math.cos(phi);
+  const z = baseRadius * Math.sin(phi) * Math.sin(theta);
+  
+  // Y座標を調整（カメラの初期位置[0,0,20]から見て被らないように）
+  const adjustedY = y * 0.4 + (Math.random() - 0.5) * 6; // Y座標を圧縮
+  
+  // Z座標を調整（カメラの前後に配置）
+  const adjustedZ = z + (Math.random() - 0.5) * 10; // Z軸方向にも分散
+  
+  // 追加のランダム性（重複を避けるため）
+  const randomOffset = 1.5;
+  const offsetX = (Math.random() - 0.5) * randomOffset;
+  const offsetY = (Math.random() - 0.5) * randomOffset;
+  const offsetZ = (Math.random() - 0.5) * randomOffset;
+  
+  return [x + offsetX, adjustedY + offsetY, adjustedZ + offsetZ];
+};
+
+// ローディング表示コンポーネント
+function LoadingText() {
+  return (
+    <Text
+      position={[0, 0, 0]}
+      fontSize={1}
+      color="#ffffff"
+      anchorX="center"
+      anchorY="middle"
+    >
+      Loading memories...
+    </Text>
+  );
+}
+
+// シーンの内容
+function SceneContent() {
+  const [allMemories, setAllMemories] = useState<Memory[]>([]);
+  const [displayedMemories, setDisplayedMemories] = useState<Memory[]>([]);
+  const [latestMemory, setLatestMemory] = useState<Memory | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // ランダムにメモリを選択する関数（最適化版）
+  const selectRandomMemories = (memories: Memory[], count: number = 30) => {
+    if (memories.length === 0) return [];
+    
+    // 表示数を削減して初期ロードを高速化
+    const result: Memory[] = [];
+    for (let i = 0; i < Math.min(count, memories.length * 2); i++) {
+      const randomIndex = Math.floor(Math.random() * memories.length);
+      result.push(memories[randomIndex]);
+    }
+    return result;
+  };
+
+  // メモリデータを取得
+  useEffect(() => {
+    const fetchMemories = async () => {
+      try {
+        const response = await fetch('/api/get-memories');
+        if (!response.ok) {
+          throw new Error('Failed to fetch memories');
+        }
+        const data = await response.json();
+        setAllMemories(data);
+        
+        // ランダムに選択したメモリを表示
+        const randomMemories = selectRandomMemories(data);
+        setDisplayedMemories(randomMemories);
+        
+        // アニメーションを再開始するためにキーを更新
+        setRefreshKey(prev => prev + 1);
+      } catch (err) {
+        console.error('API error:', err);
+        setError('Failed to load memories');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // 初回読み込み
+    fetchMemories();
+
+    // Supabaseリアルタイム購読
+    const channel = supabase
+      .channel('memories-3d')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'memories' },
+        (payload) => {
+          console.log('New memory received in 3D scene:', payload.new);
+          // 新しいメモリを全メモリリストに追加
+          const newMemory = payload.new as Memory;
+          
+          // 最新のメモリをカメラに一番近い位置に設定
+          setLatestMemory(newMemory);
+          
+          setAllMemories(prev => {
+            const updated = [...prev, newMemory];
+            // 新しいランダム選択を実行（最新メモリ以外）
+            const randomMemories = selectRandomMemories(updated, 49); // 49個にして最新メモリ用のスペースを確保
+            setDisplayedMemories(randomMemories);
+            setRefreshKey(prev => prev + 1);
+            return updated;
+          });
+          
+          // 15秒後に最新メモリを通常の位置に移動
+          setTimeout(() => {
+            setLatestMemory(null);
+            setRefreshKey(prev => prev + 1);
+          }, 15000);
+        }
+      )
+      .subscribe();
+
+    // 15秒ごとに新しいランダムなテキストを表示
+    const interval = setInterval(() => {
+      if (allMemories.length > 0) {
+        const randomMemories = selectRandomMemories(allMemories);
+        setDisplayedMemories(randomMemories);
+        setRefreshKey(prev => prev + 1);
+      } else {
+        fetchMemories();
+      }
+    }, 15000);
+
+    // クリーンアップ
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [allMemories.length]);
+
+  if (loading) {
+    return <LoadingText />;
+  }
+
+  if (error) {
+    return (
+      <Text
+        position={[0, 0, 0]}
+        fontSize={0.8}
+        color="#ff4444"
+        anchorX="center"
+        anchorY="middle"
+      >
+        Error: {error}
+      </Text>
+    );
+  }
+
+  if (displayedMemories.length === 0) {
+    return (
+      <Text
+        position={[0, 0, 0]}
+        fontSize={0.8}
+        color="#888888"
+        anchorX="center"
+        anchorY="middle"
+      >
+        No memories found
+      </Text>
+    );
+  }
+
+  return (
+    <>
+      {/* 環境光 */}
+      <ambientLight intensity={0.3} />
+      
+      {/* ポイントライト */}
+      <pointLight position={[10, 10, 10]} intensity={1} />
+      <pointLight position={[-10, -10, -10]} intensity={0.5} />
+      
+      {/* 星空背景 */}
+      <Stars 
+        radius={100} 
+        depth={50} 
+        count={5000} 
+        factor={4} 
+        saturation={0} 
+        fade 
+        speed={1}
+      />
+      
+      {/* 最新のメモリをカメラに一番近い位置に表示 */}
+      {latestMemory && (
+        <MemoryText
+          key={`latest-${latestMemory.id}-${refreshKey}`}
+          memory={latestMemory}
+          position={[0, 0, 10]} // カメラにより近い位置
+          delay={0}
+          scale={2.0} // より大きく表示
+          isLatest={true} // 最新の投稿として緑色で表示
+        />
+      )}
+      
+      {/* メモリテキストを3D空間に配置 */}
+      {displayedMemories.map((memory: Memory, index: number) => (
+        <MemoryText
+          key={`${memory.id}-${index}-${refreshKey}`} // idとindexを使って識別
+          memory={memory}
+          position={generateRandomPosition(index)}
+          delay={index * 50} // 50msずつずらしてアニメーション開始（高速化）
+        />
+      ))}
+      
+      {/* カメラコントロール */}
+      <OrbitControls
+        enablePan={true}
+        enableZoom={true}
+        enableRotate={true}
+        zoomSpeed={0.6}
+        panSpeed={0.8}
+        rotateSpeed={0.4}
+        minDistance={5}
+        maxDistance={100}
+      />
+    </>
+  );
+}
+
+export default function ThreeMemoryScene() {
+  return (
+    <div className="w-full h-screen" style={{ backgroundColor: '#265CAC' }}>
+      <Canvas
+        camera={{
+          position: [0, 0, 20],
+          fov: 75,
+          near: 0.1,
+          far: 1000
+        }}
+        gl={{
+          antialias: true,
+          alpha: true
+        }}
+      >
+        <Suspense fallback={<LoadingText />}>
+          <SceneContent />
+        </Suspense>
+      </Canvas>
+      
+      {/* 操作説明 */}
+      <div className="absolute top-4 left-4 text-white text-xs sm:text-sm bg-black bg-opacity-50 p-2 sm:p-3 rounded max-w-[200px] sm:max-w-none">
+        <p className="font-medium mb-1">操作方法:</p>
+        <div className="space-y-0.5">
+          <p className="hidden sm:block">• ドラッグ: 回転</p>
+          <p className="hidden sm:block">• ホイール: ズーム</p>
+          <p className="hidden sm:block">• 右クリック + ドラッグ: パン</p>
+          <p className="sm:hidden">• タッチ: 回転</p>
+          <p className="sm:hidden">• ピンチ: ズーム</p>
+          <p className="sm:hidden">• 2本指ドラッグ: パン</p>
+        </div>
+      </div>
+    </div>
+  );
+}

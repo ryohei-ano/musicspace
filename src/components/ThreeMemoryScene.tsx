@@ -3,11 +3,9 @@
 import { useState, useEffect, Suspense, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stars, Text } from '@react-three/drei';
-import { RotateCcw, ZoomIn, Move3D } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import MemoryText from './MemoryText';
 import VideoPlane from './VideoPlane';
-import html2canvas from 'html2canvas';
 
 interface Memory {
   id: number;

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, Camera, MessageSquarePlus, RotateCcw, ZoomIn, Move3D } from 'lucide-react';
+import { LogOut, Camera, MessageSquarePlus } from 'lucide-react';
 import TerminalStream from '@/components/TerminalStream';
 import ThreeMemoryScene from '@/components/ThreeMemoryScene';
 
@@ -10,7 +10,6 @@ export default function Page() {
   const router = useRouter();
   const [showTerminal, setShowTerminal] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(0);
-  const [isScreenshotMode, setIsScreenshotMode] = useState(false);
 
   useEffect(() => {
     // 認証状態をチェック
@@ -54,36 +53,33 @@ export default function Page() {
       {/* 3Dメモリシーン */}
       <ThreeMemoryScene />
       
-      {/* ロゴ（左上）- スクリーンショット時は非表示 */}
-      {!isScreenshotMode && (
-        <div 
-          className="fixed top-4 left-4 sm:absolute" 
-          style={{ zIndex: 9999 }}
+      {/* ロゴ（左上） */}
+      <div 
+        className="fixed top-4 left-4 sm:absolute" 
+        style={{ zIndex: 9999 }}
+      >
+        <button
+          onClick={() => router.push('/')}
+          className="block hover:opacity-80 transition-opacity duration-150 active:scale-95 cursor-pointer"
+          style={{ 
+            pointerEvents: 'auto',
+            position: 'relative',
+            zIndex: 9999
+          }}
         >
-          <button
-            onClick={() => router.push('/')}
-            className="block hover:opacity-80 transition-opacity duration-150 active:scale-95 cursor-pointer"
-            style={{ 
-              pointerEvents: 'auto',
-              position: 'relative',
-              zIndex: 9999
-            }}
-          >
-            <img 
-              src="/image/pocari_logo.webp" 
-              alt="POCARI Logo" 
-              className="h-12 w-auto sm:h-16"
-            />
-          </button>
-        </div>
-      )}
+          <img 
+            src="/image/pocari_logo.webp" 
+            alt="POCARI Logo" 
+            className="h-12 w-auto sm:h-16"
+          />
+        </button>
+      </div>
       
-      {/* コントロールパネル（スマホで固定表示）- スクリーンショット時は非表示 */}
-      {!isScreenshotMode && (
-        <div 
-          className="fixed top-4 right-4 flex flex-col gap-3 sm:gap-2 sm:absolute" 
-          style={{ zIndex: 9999 }}
-        >
+      {/* コントロールパネル（スマホで固定表示） */}
+      <div 
+        className="fixed top-4 right-4 flex flex-col gap-3 sm:gap-2 sm:absolute" 
+        style={{ zIndex: 9999 }}
+      >
           {/* ログアウトボタン */}
           <button 
             onClick={(e) => {
@@ -188,8 +184,7 @@ export default function Page() {
           >
             <Camera size={20} />
           </button>
-        </div>
-      )}
+      </div>
       
       {/* ターミナル（キーボード対応） */}
       {showTerminal && (

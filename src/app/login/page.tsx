@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 export default function Page() {
   const router = useRouter();
   const [pass, setPass] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [backgroundVideo, setBackgroundVideo] = useState('');
 
   // ランダムな背景動画を選択

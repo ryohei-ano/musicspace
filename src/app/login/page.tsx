@@ -52,8 +52,12 @@ export default function Page() {
 
   return (
     <div 
-      className="relative flex flex-col items-center justify-center min-h-screen px-4 overflow-hidden"
-      style={{ backgroundColor: '#265CAC' }}
+      className="relative flex flex-col items-center justify-center px-4 overflow-hidden"
+      style={{ 
+        backgroundColor: '#265CAC',
+        minHeight: '100vh',
+        height: '100vh'
+      }}
     >
       {/* 背景動画 */}
       {backgroundVideo && (
@@ -164,9 +168,9 @@ export default function Page() {
           100% { background-position: 0px 0px, 0px 0px; }
         }
       `}</style>
-      {/* ロゴ（左上） */}
+      {/* ロゴ（上部固定） */}
       <div 
-        className="absolute top-4 left-4" 
+        className="fixed top-4 left-4 sm:absolute" 
         style={{ zIndex: 9999 }}
       >
         <button
@@ -239,7 +243,7 @@ export default function Page() {
               placeholder="パスワードを入力"
               value={pass}
               onChange={(e) => setPass(e.target.value)}
-              className="w-full p-2 pr-8 text-sm"
+              className="w-full p-2 pr-10 text-sm"
               style={{
                 fontSize: '16px', // iOS Safari ズーム防止
                 WebkitAppearance: 'none',
@@ -255,7 +259,7 @@ export default function Page() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-1 top-1/2 transform -translate-y-1/2 w-6 h-6 cursor-pointer flex items-center justify-center text-xs"
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 w-5 h-5 cursor-pointer flex items-center justify-center text-xs"
               style={{
                 background: '#c0c0c0',
                 border: '1px outset #c0c0c0',

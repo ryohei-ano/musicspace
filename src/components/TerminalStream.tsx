@@ -175,8 +175,12 @@ export default function TerminalStream({ onClose }: TerminalStreamProps) {
           <div className="w-3 h-3 bg-gray-400" style={{ border: '1px outset #c0c0c0' }}></div>
           <button
             onClick={onClose}
-            className="w-3 h-3 bg-red-500 cursor-pointer flex items-center justify-center text-white text-xs font-bold hover:bg-red-600"
-            style={{ border: '1px outset #c0c0c0' }}
+            className="w-3 h-3 bg-red-500 cursor-pointer flex items-center justify-center text-white font-bold hover:bg-red-600"
+            style={{ 
+              border: '1px outset #c0c0c0',
+              fontSize: '8px',
+              lineHeight: '1'
+            }}
           >
             ×
           </button>

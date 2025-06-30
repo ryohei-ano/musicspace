@@ -270,11 +270,9 @@ function SceneContent() {
           setAllMemories(prev => {
             const updated = [...prev, newMemory];
             // 新しいランダム選択を実行（最新メモリ以外）
-            setDisplayedMemories(prevDisplayed => {
-              const randomMemories = selectRandomMemories(updated, 30);
-              setRefreshKey(prev => prev + 1);
-              return randomMemories;
-            });
+            const randomMemories = selectRandomMemories(updated, 30);
+            setDisplayedMemories(randomMemories);
+            setRefreshKey(prev => prev + 1);
             return updated;
           });
           

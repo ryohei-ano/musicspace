@@ -348,16 +348,9 @@ export default function ThreeMemoryScene() {
       </Canvas>
       
       {/* 操作説明 */}
-      <div className="absolute top-4 left-4 text-white text-xs sm:text-sm bg-black bg-opacity-50 p-2 sm:p-3 rounded max-w-[200px] sm:max-w-none">
-        <p className="font-medium mb-1">操作方法:</p>
-        <div className="space-y-0.5">
-          <p className="hidden sm:block">• ドラッグ: 回転</p>
-          <p className="hidden sm:block">• ホイール: ズーム</p>
-          <p className="hidden sm:block">• 右クリック + ドラッグ: パン</p>
-          <p className="sm:hidden">• タッチ: 回転</p>
-          <p className="sm:hidden">• ピンチ: ズーム</p>
-          <p className="sm:hidden">• 2本指ドラッグ: パン</p>
-        </div>
+      <div className="fixed bottom-2 right-2 text-white text-xs pointer-events-none">
+        <p className="hidden sm:block">ドラッグ: 回転 | ホイール: ズーム | 右クリック + ドラッグ: パン</p>
+        <p className="sm:hidden">タッチ: 回転 | ピンチ: ズーム | 2本指ドラッグ: パン</p>
       </div>
     </div>
   );

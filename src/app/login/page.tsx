@@ -7,13 +7,8 @@ export default function Page() {
   const router = useRouter();
   const [pass, setPass] = useState('');
 
-  useEffect(() => {
-    const ok = localStorage.getItem('auth') === '1';
-    if (ok) {
-      router.push('/space');
-      return;
-    }
-  }, [router]);
+  // ログインページでは常にパスワード入力を求める
+  // useEffectでの自動リダイレクトを削除
 
   const submit = () => {
     if (pass === 'U2zhDY' || pass === 'L5zaYQ' || pass === 'w7TDkL') {
@@ -33,24 +28,118 @@ export default function Page() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen text-white px-4" style={{ backgroundColor: '#265CAC' }}>
-      <div className="w-full max-w-sm p-6 sm:p-8 bg-black bg-opacity-50 rounded-lg">
-        <h1 className="text-xl sm:text-2xl mb-6 text-center">Login</h1>
-        <input
-          type="password"
-          placeholder="パスワードを入力"
-          value={pass}
-          onChange={(e) => setPass(e.target.value)}
-          className="w-full p-3 sm:p-2 mb-4 bg-gray-800 text-white rounded text-base"
-          onKeyDown={handleKeyDown}
-          autoFocus
-        />
-        <button 
-          onClick={submit}
-          className="w-full p-3 sm:p-2 bg-blue-600 text-white rounded hover:bg-blue-700 active:bg-blue-800 transition-colors text-base font-medium"
+    <div 
+      className="relative flex flex-col items-center justify-center min-h-screen px-4"
+      style={{ backgroundColor: '#265CAC' }}
+    >
+      {/* ロゴ（左上） */}
+      <div 
+        className="absolute top-4 left-4" 
+        style={{ zIndex: 9999 }}
+      >
+        <button
+          onClick={() => router.push('/')}
+          className="block hover:opacity-80 transition-opacity duration-150 active:scale-95 cursor-pointer"
+          style={{ 
+            pointerEvents: 'auto',
+            position: 'relative',
+            zIndex: 9999
+          }}
         >
-          ENTER
+          <img 
+            src="/image/pocari_logo.webp" 
+            alt="POCARI Logo" 
+            className="h-12 w-auto sm:h-16"
+          />
         </button>
+      </div>
+
+      {/* メインタイトル */}
+      <h1 
+        className="text-3xl sm:text-4xl mb-8 text-center font-bold text-white"
+        style={{ 
+          fontFamily: 'MS Sans Serif, sans-serif',
+          textShadow: '1px 1px 2px rgba(0,0,0,0.5)'
+        }}
+      >
+        青春は、バグだ。
+      </h1>
+
+      {/* ログインダイアログ */}
+      <div 
+        className="w-full max-w-sm p-4"
+        style={{
+          background: '#c0c0c0',
+          border: '2px outset #c0c0c0',
+          borderRadius: '0',
+          boxShadow: 'inset -1px -1px #808080, inset 1px 1px #dfdfdf, inset -2px -2px #808080, inset 2px 2px #dfdfdf'
+        }}
+      >
+        {/* タイトルバー */}
+        <div 
+          className="flex items-center justify-between px-2 py-1 mb-3 text-sm"
+          style={{
+            background: 'linear-gradient(90deg, #0a246a 0%, #a6caf0 100%)',
+            color: 'white',
+            borderBottom: '1px solid #808080'
+          }}
+        >
+          <span className="font-bold">ログイン</span>
+          <div className="flex space-x-1">
+            <div className="w-3 h-3 bg-gray-400" style={{ border: '1px outset #c0c0c0' }}></div>
+            <div className="w-3 h-3 bg-gray-400" style={{ border: '1px outset #c0c0c0' }}></div>
+            <div className="w-3 h-3 bg-red-500" style={{ border: '1px outset #c0c0c0' }}></div>
+          </div>
+        </div>
+
+        {/* コンテンツエリア */}
+        <div className="p-3">
+          <label 
+            className="block mb-2 text-sm"
+            style={{ color: '#000000' }}
+          >
+            パスワード:
+          </label>
+          <input
+            type="password"
+            placeholder="パスワードを入力"
+            value={pass}
+            onChange={(e) => setPass(e.target.value)}
+            className="w-full p-2 mb-4 text-sm"
+            style={{
+              fontSize: '16px', // iOS Safari ズーム防止
+              WebkitAppearance: 'none',
+              borderRadius: 0,
+              background: 'white',
+              border: '1px inset #c0c0c0',
+              color: '#000000',
+              outline: 'none'
+            }}
+            onKeyDown={handleKeyDown}
+            autoFocus
+          />
+          <button 
+            onClick={submit}
+            className="w-full p-2 text-sm font-medium cursor-pointer"
+            style={{
+              background: '#c0c0c0',
+              border: '2px outset #c0c0c0',
+              color: '#000000',
+              borderRadius: 0
+            }}
+            onMouseDown={(e) => {
+              e.currentTarget.style.border = '2px inset #c0c0c0';
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.style.border = '2px outset #c0c0c0';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.border = '2px outset #c0c0c0';
+            }}
+          >
+            Enter
+          </button>
+        </div>
       </div>
     </div>
   );

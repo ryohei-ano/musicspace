@@ -17,7 +17,11 @@ interface Memory {
   memory_id: string;
 }
 
-export default function TerminalStream() {
+interface TerminalStreamProps {
+  onClose?: () => void;
+}
+
+export default function TerminalStream({ onClose }: TerminalStreamProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -169,7 +173,13 @@ export default function TerminalStream() {
         <div className="flex space-x-1">
           <div className="w-3 h-3 bg-gray-400" style={{ border: '1px outset #c0c0c0' }}></div>
           <div className="w-3 h-3 bg-gray-400" style={{ border: '1px outset #c0c0c0' }}></div>
-          <div className="w-3 h-3 bg-red-500" style={{ border: '1px outset #c0c0c0' }}></div>
+          <button
+            onClick={onClose}
+            className="w-3 h-3 bg-red-500 cursor-pointer flex items-center justify-center text-white text-xs font-bold hover:bg-red-600"
+            style={{ border: '1px outset #c0c0c0' }}
+          >
+            ×
+          </button>
         </div>
       </div>
       

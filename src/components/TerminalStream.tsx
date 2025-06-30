@@ -26,7 +26,7 @@ export default function TerminalStream({ onClose }: TerminalStreamProps) {
   const [inputValue, setInputValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -47,7 +47,7 @@ export default function TerminalStream({ onClose }: TerminalStreamProps) {
       },
       {
         id: '2',
-        text: 'Type your memory and press Enter to post',
+        text: 'Type your memory and click 送信 to post',
         timestamp: new Date().toLocaleTimeString(),
         type: 'system'
       }
@@ -102,6 +102,59 @@ export default function TerminalStream({ onClose }: TerminalStreamProps) {
     setMessages(prev => [...prev, newMessage]);
   };
 
+  // 不適切な内容をチェックする関数
+  const validateContent = (text: string): { isValid: boolean; reason?: string } => {
+    const content = text.toLowerCase().trim();
+    
+    // 禁止単語リスト（日本語・英語）
+    const prohibitedWords = [
+      // 卑猥な単語
+      'セックス', 'sex', 'エッチ', 'ちんこ', 'まんこ', 'おっぱい', 'ペニス', 'ヴァギナ', 'オナニー', 'masturbation',
+      'porn', 'ポルノ', 'アダルト', 'adult', 'nude', 'ヌード', 'エロ', 'ero', 'hentai', 'ヘンタイ',
+      // 誹謗中傷・差別用語
+      '死ね', 'しね', 'die', 'kill', 'キル', 'ころす', '殺す', 'バカ', 'ばか', 'アホ', 'あほ', 'stupid', 'idiot',
+      'ブス', 'ぶす', 'ugly', 'デブ', 'でぶ', 'fat', 'きもい', 'キモい', 'gross', 'disgusting',
+      'うざい', 'ウザい', 'annoying', 'クズ', 'くず', 'trash', 'ゴミ', 'ごみ', 'garbage',
+      // 差別用語
+      'チョン', 'ちょん', 'ガイジ', 'がいじ', 'retard', 'nigger', 'faggot', 'bitch',
+      // 暴力的な表現
+      '暴力', 'violence', '殴る', 'なぐる', 'punch', 'beat', 'テロ', 'terror', 'bomb', '爆弾',
+      // その他の不適切な表現
+      'うんこ', 'ウンコ', 'shit', 'fuck', 'damn', 'hell', 'クソ', 'くそ', 'crap', 'うんち',
+    ];
+
+    // 禁止単語チェック
+    for (const word of prohibitedWords) {
+      if (content.includes(word)) {
+        return { isValid: false, reason: '不適切な内容が含まれています' };
+      }
+    }
+
+    // 文字数チェック
+    if (content.length < 1) {
+      return { isValid: false, reason: '内容を入力してください' };
+    }
+
+    if (content.length > 500) {
+      return { isValid: false, reason: '500文字以内で入力してください' };
+    }
+
+    // 連続する同じ文字のチェック（スパム防止）
+    const repeatedChar = /(.)\1{9,}/; // 同じ文字が10回以上連続
+    if (repeatedChar.test(content)) {
+      return { isValid: false, reason: '同じ文字の連続は10文字までです' };
+    }
+
+    // URLスパムチェック
+    const urlPattern = /(https?:\/\/[^\s]+)/gi;
+    const urls = content.match(urlPattern);
+    if (urls && urls.length > 2) {
+      return { isValid: false, reason: 'URLは2個までです' };
+    }
+
+    return { isValid: true };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -111,8 +164,10 @@ export default function TerminalStream({ onClose }: TerminalStreamProps) {
 
     const memory = inputValue.trim();
     
-    // 最小限の文字数チェック
-    if (memory.length < 1) {
+    // 内容のバリデーション
+    const validation = validateContent(memory);
+    if (!validation.isValid) {
+      addMessage(`✗ ${validation.reason}`, 'error');
       return;
     }
     
@@ -175,11 +230,15 @@ export default function TerminalStream({ onClose }: TerminalStreamProps) {
           <div className="w-3 h-3 bg-gray-400" style={{ border: '1px outset #c0c0c0' }}></div>
           <button
             onClick={onClose}
-            className="w-3 h-3 bg-gray-400 cursor-pointer flex items-center justify-center text-black font-bold hover:bg-gray-500"
+            className="bg-gray-400 cursor-pointer flex items-center justify-center text-black font-bold hover:bg-gray-500"
             style={{ 
               border: '1px outset #c0c0c0',
               fontSize: '8px',
-              lineHeight: '1'
+              lineHeight: '1',
+              width: '10.5px',
+              height: '10.5px',
+              minWidth: '10.5px',
+              minHeight: '10.5px'
             }}
           >
             ×
@@ -212,16 +271,15 @@ export default function TerminalStream({ onClose }: TerminalStreamProps) {
           borderTop: '1px solid #808080'
         }}
       >
-        <form onSubmit={handleSubmit} className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2">
           <span className="text-xs sm:text-sm" style={{ color: '#000000' }}>$</span>
-          <input
+          <textarea
             ref={inputRef}
-            type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             placeholder="Enter your memory..."
             disabled={isSubmitting}
-            className="flex-1 px-2 py-1 text-xs sm:text-sm"
+            className="flex-1 px-2 py-1 text-xs sm:text-sm resize-none"
             style={{
               fontSize: '16px', // iOS Safari ズーム防止
               WebkitAppearance: 'none',
@@ -229,20 +287,52 @@ export default function TerminalStream({ onClose }: TerminalStreamProps) {
               background: 'white',
               border: '1px inset #c0c0c0',
               color: '#000000',
-              outline: 'none'
+              outline: 'none',
+              height: '32px', // 入力フィールドと同じ高さ
+              minHeight: '32px',
+              maxHeight: '80px'
             }}
             autoComplete="off"
             autoCorrect="off"
             autoCapitalize="off"
             spellCheck="false"
-            autoFocus
+            onFocus={(e) => {
+              // スクロール防止のため、フォーカス時にスクロール位置を維持
+              e.preventDefault();
+              setTimeout(() => {
+                if (e.target) {
+                  e.target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+              }, 100);
+            }}
           />
-          {isSubmitting && (
-            <span className="text-xs sm:text-sm" style={{ color: '#000080' }}>
-              Posting...
-            </span>
-          )}
-        </form>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting || !inputValue.trim()}
+            className="px-3 py-1 text-xs sm:text-sm cursor-pointer"
+            style={{
+              background: '#c0c0c0',
+              border: '2px outset #c0c0c0',
+              color: '#000000',
+              borderRadius: 0,
+              height: '32px',
+              minWidth: '60px'
+            }}
+            onMouseDown={(e) => {
+              if (!isSubmitting && inputValue.trim()) {
+                e.currentTarget.style.border = '2px inset #c0c0c0';
+              }
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.style.border = '2px outset #c0c0c0';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.border = '2px outset #c0c0c0';
+            }}
+          >
+            {isSubmitting ? '送信中...' : '送信'}
+          </button>
+        </div>
       </div>
     </div>
   );

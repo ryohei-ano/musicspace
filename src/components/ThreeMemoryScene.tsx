@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stars, Text } from '@react-three/drei';
+import { RotateCcw, ZoomIn, Move3D } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import MemoryText from './MemoryText';
 import VideoPlane from './VideoPlane';
+import html2canvas from 'html2canvas';
 
 interface Memory {
   id: number;
@@ -50,22 +52,7 @@ const generateRandomPosition = (index: number): [number, number, number] => {
 };
 
 // ローディング表示コンポーネント
-function LoadingText() {
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 100) {
-          return 0; // リセットして繰り返し
-        }
-        return prev + 2; // 2%ずつ増加
-      });
-    }, 50); // 50ms間隔
-
-    return () => clearInterval(interval);
-  }, []);
-
+function LoadingText({ progress }: { progress: number }) {
   // プログレスに基づいてバーの幅を計算
   const barWidth = (progress / 100) * 3.6; // 最大3.6の幅
   const barPosition = -1.8 + (barWidth / 2); // 左端から開始
@@ -190,6 +177,7 @@ function SceneContent() {
   const [displayedMemories, setDisplayedMemories] = useState<Memory[]>([]);
   const [recentMemories, setRecentMemories] = useState<Memory[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -225,8 +213,25 @@ function SceneContent() {
     return result;
   };
 
+  // ローディングプログレスを管理
+  useEffect(() => {
+    const progressInterval = setInterval(() => {
+      setLoadingProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(progressInterval);
+          return 100;
+        }
+        return prev + 10; // 10%ずつ増加（約0.5秒で完了）
+      });
+    }, 50); // 50ms間隔
+
+    return () => clearInterval(progressInterval);
+  }, []);
+
   // メモリデータを取得
   useEffect(() => {
+    let isMounted = true;
+    
     const fetchMemories = async () => {
       try {
         const response = await fetch('/api/get-memories');
@@ -234,25 +239,43 @@ function SceneContent() {
           throw new Error('Failed to fetch memories');
         }
         const data = await response.json();
-        setAllMemories(data);
         
-        // ランダムに選択したメモリを表示
-        const randomMemories = selectRandomMemories(data);
-        setDisplayedMemories(randomMemories);
-        
-        // アニメーションを再開始するためにキーを更新
-        setRefreshKey(prev => prev + 1);
+        if (isMounted) {
+          setAllMemories(data);
+          
+          // ランダムに選択したメモリを表示
+          const randomMemories = selectRandomMemories(data);
+          setDisplayedMemories(randomMemories);
+          
+          // アニメーションを再開始するためにキーを更新
+          setRefreshKey(prev => prev + 1);
+        }
       } catch (err) {
         console.error('API error:', err);
-        setError('Failed to load memories');
+        if (isMounted) {
+          setError('Failed to load memories');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
-    // 初回読み込み
-    fetchMemories();
+    // ローディングプログレスが100%になったら実際のデータを取得
+    if (loadingProgress >= 100) {
+      setTimeout(() => {
+        fetchMemories();
+      }, 300);
+    }
 
+    return () => {
+      isMounted = false;
+    };
+  }, [loadingProgress]);
+
+  // Supabaseリアルタイム購読を別のuseEffectに分離
+  useEffect(() => {
     // Supabaseリアルタイム購読
     const channel = supabase
       .channel('memories-3d')
@@ -289,7 +312,7 @@ function SceneContent() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []); // 依存関係を空配列に変更
+  }, []); // 空の依存関係配列
 
   // 15秒ごとのランダム表示を別のuseEffectに分離
   useEffect(() => {
@@ -324,7 +347,7 @@ function SceneContent() {
   }, []);
 
   if (loading) {
-    return <LoadingText />;
+    return <LoadingText progress={loadingProgress} />;
   }
 
   if (error) {
@@ -424,9 +447,164 @@ function SceneContent() {
 }
 
 export default function ThreeMemoryScene() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isScreenshotMode, setIsScreenshotMode] = useState(false);
+
+  // スクリーンショット機能
+  const takeScreenshot = async () => {
+    setIsScreenshotMode(true);
+    
+    // オーバーレイ要素が表示されるまで少し待つ
+    setTimeout(async () => {
+      try {
+        // Three.jsのcanvasを直接取得してスクリーンショット
+        const canvas = canvasRef.current;
+        if (!canvas) {
+          throw new Error('Canvas not found');
+        }
+
+        // Three.jsのcanvasからデータURLを取得
+        const dataURL = canvas.toDataURL('image/png', 1.0);
+        
+        // 新しいcanvasを作成してオーバーレイ要素を合成
+        const compositeCanvas = document.createElement('canvas');
+        const ctx = compositeCanvas.getContext('2d');
+        
+        if (!ctx) {
+          throw new Error('Canvas context not available');
+        }
+
+        // インスタストーリーズのような縦長の3:4（縦長）でcanvasサイズを設定
+        const aspectRatio = 3 / 4; // 縦長の比率
+        const baseHeight = 1200; // 高解像度の基準高さ
+        compositeCanvas.width = baseHeight * aspectRatio; // 900px (3:4比率)
+        compositeCanvas.height = baseHeight;
+
+        // 背景色を設定
+        ctx.fillStyle = '#265CAC';
+        ctx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
+
+        // Three.jsの画像を描画
+        const img = new Image();
+        img.onload = () => {
+          // 元の画像のアスペクト比を保持しながら縦長canvasに描画
+          const imgAspectRatio = img.width / img.height;
+          const canvasAspectRatio = compositeCanvas.width / compositeCanvas.height;
+          
+          let drawWidth, drawHeight, drawX, drawY;
+          
+          if (imgAspectRatio > canvasAspectRatio) {
+            // 画像が横長の場合、幅を基準にして高さを調整
+            drawWidth = compositeCanvas.width;
+            drawHeight = compositeCanvas.width / imgAspectRatio;
+            drawX = 0;
+            drawY = (compositeCanvas.height - drawHeight) / 2;
+          } else {
+            // 画像が縦長の場合、高さを基準にして幅を調整
+            drawHeight = compositeCanvas.height;
+            drawWidth = compositeCanvas.height * imgAspectRatio;
+            drawX = (compositeCanvas.width - drawWidth) / 2;
+            drawY = 0;
+          }
+          
+          // アスペクト比を保持して描画
+          ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+
+          // ポカリロゴを描画
+          const logo = new Image();
+          logo.onload = () => {
+            const logoSize = window.innerWidth < 640 ? 48 : 64;
+            ctx.drawImage(logo, 16, 16, logoSize, logoSize * (logo.height / logo.width));
+
+            // ハッシュタグを描画
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 18px Arial, sans-serif';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText('#青春はバグだ。', compositeCanvas.width - 16, compositeCanvas.height - 16);
+
+            // 最終的なデータURLを取得
+            const finalDataURL = compositeCanvas.toDataURL('image/png', 1.0);
+            
+            // UIを先に再表示
+            setIsScreenshotMode(false);
+            
+            // 保存確認アラート
+            const shouldSave = window.confirm('スクリーンショットを保存しますか？');
+            
+            if (shouldSave) {
+              // ダウンロード用のリンクを作成
+              const link = document.createElement('a');
+              link.download = `pocari_screenshot_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
+              link.href = finalDataURL;
+              
+              // ダウンロードを実行
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              
+              console.log('Screenshot saved successfully');
+            } else {
+              console.log('Screenshot cancelled by user');
+            }
+          };
+          logo.onerror = () => {
+            console.warn('Logo failed to load, proceeding without logo');
+            
+            // ハッシュタグのみ描画
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 18px Arial, sans-serif';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText('#青春はバグだ。', compositeCanvas.width - 16, compositeCanvas.height - 16);
+
+            const finalDataURL = compositeCanvas.toDataURL('image/png', 1.0);
+            setIsScreenshotMode(false);
+            
+            const shouldSave = window.confirm('スクリーンショットを保存しますか？');
+            if (shouldSave) {
+              const link = document.createElement('a');
+              link.download = `pocari_screenshot_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
+              link.href = finalDataURL;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              console.log('Screenshot saved successfully (without logo)');
+            }
+          };
+          logo.src = '/image/pocari_logo.webp';
+        };
+        img.onerror = () => {
+          throw new Error('Failed to load Three.js canvas image');
+        };
+        img.src = dataURL;
+        
+      } catch (error) {
+        console.error('Failed to take screenshot:', error);
+        // エラー時もUIを再表示
+        setIsScreenshotMode(false);
+        alert(`スクリーンショットの撮影に失敗しました。エラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }, 500);
+  };
+
+  // スクリーンショットイベントリスナー
+  useEffect(() => {
+    const handleScreenshot = () => {
+      takeScreenshot();
+    };
+
+    window.addEventListener('takeScreenshot', handleScreenshot);
+    
+    return () => {
+      window.removeEventListener('takeScreenshot', handleScreenshot);
+    };
+  }, []);
+
   return (
     <div className="w-full h-screen" style={{ backgroundColor: '#265CAC' }}>
       <Canvas
+        ref={canvasRef}
         camera={{
           position: [0, 0, 20],
           fov: 75,
@@ -435,19 +613,51 @@ export default function ThreeMemoryScene() {
         }}
         gl={{
           antialias: true,
-          alpha: true
+          alpha: true,
+          preserveDrawingBuffer: true // スクリーンショットのために必要
         }}
       >
-        <Suspense fallback={<LoadingText />}>
+        <Suspense fallback={<LoadingText progress={0} />}>
           <SceneContent />
         </Suspense>
       </Canvas>
       
-      {/* 操作説明 */}
-      <div className="fixed bottom-2 right-2 text-white text-xs pointer-events-none">
-        <p className="hidden sm:block">ドラッグ: 回転 | ホイール: ズーム | 右クリック + ドラッグ: パン</p>
-        <p className="sm:hidden">タッチ: 回転 | ピンチ: ズーム | 2本指ドラッグ: パン</p>
-      </div>
+      {/* スクリーンショット用オーバーレイ（スクリーンショット時のみ表示） */}
+      {isScreenshotMode && (
+        <>
+          {/* ポカリロゴ */}
+          <div 
+            className="fixed top-4 left-4"
+            style={{ zIndex: 10000 }}
+          >
+            <img 
+              src="/image/pocari_logo.webp" 
+              alt="POCARI Logo" 
+              className="h-12 w-auto sm:h-16"
+            />
+          </div>
+          
+          {/* ハッシュタグ */}
+          <div 
+            className="fixed bottom-4 right-4 text-white text-lg font-bold"
+            style={{ 
+              zIndex: 10000,
+              fontFamily: 'MS Sans Serif, sans-serif',
+              textShadow: '2px 2px 4px rgba(0,0,0,0.8)'
+            }}
+          >
+            #青春はバグだ。
+          </div>
+        </>
+      )}
+      
+      {/* 操作説明（スクリーンショット時は非表示） */}
+      {!isScreenshotMode && (
+        <div className="fixed bottom-2 right-2 text-white text-xs pointer-events-none">
+          <p className="hidden sm:block">ドラッグ: 回転 | ホイール: ズーム | 右クリック + ドラッグ: パン</p>
+          <p className="sm:hidden">タッチ: 回転 | ピンチ: ズーム | 2本指ドラッグ: パン</p>
+        </div>
+      )}
     </div>
   );
 }

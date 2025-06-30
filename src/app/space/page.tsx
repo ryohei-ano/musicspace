@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { LogOut, Camera, MessageSquarePlus, RotateCcw, ZoomIn, Move3D } from 'lucide-react';
 import TerminalStream from '@/components/TerminalStream';
 import ThreeMemoryScene from '@/components/ThreeMemoryScene';
 
@@ -9,6 +10,7 @@ export default function Page() {
   const router = useRouter();
   const [showTerminal, setShowTerminal] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(0);
+  const [isScreenshotMode, setIsScreenshotMode] = useState(false);
 
   useEffect(() => {
     // 認証状態をチェック
@@ -52,91 +54,142 @@ export default function Page() {
       {/* 3Dメモリシーン */}
       <ThreeMemoryScene />
       
-      {/* ロゴ（左上） */}
-      <div 
-        className="fixed top-4 left-4 sm:absolute" 
-        style={{ zIndex: 9999 }}
-      >
-        <button
-          onClick={() => router.push('/')}
-          className="block hover:opacity-80 transition-opacity duration-150 active:scale-95 cursor-pointer"
-          style={{ 
-            pointerEvents: 'auto',
-            position: 'relative',
-            zIndex: 9999
-          }}
+      {/* ロゴ（左上）- スクリーンショット時は非表示 */}
+      {!isScreenshotMode && (
+        <div 
+          className="fixed top-4 left-4 sm:absolute" 
+          style={{ zIndex: 9999 }}
         >
-          <img 
-            src="/image/pocari_logo.webp" 
-            alt="POCARI Logo" 
-            className="h-12 w-auto sm:h-16"
-          />
-        </button>
-      </div>
+          <button
+            onClick={() => router.push('/')}
+            className="block hover:opacity-80 transition-opacity duration-150 active:scale-95 cursor-pointer"
+            style={{ 
+              pointerEvents: 'auto',
+              position: 'relative',
+              zIndex: 9999
+            }}
+          >
+            <img 
+              src="/image/pocari_logo.webp" 
+              alt="POCARI Logo" 
+              className="h-12 w-auto sm:h-16"
+            />
+          </button>
+        </div>
+      )}
       
-      {/* コントロールパネル（スマホで固定表示） */}
-      <div 
-        className="fixed top-4 right-4 flex flex-col gap-3 sm:gap-2 sm:absolute" 
-        style={{ zIndex: 9999 }}
-      >
-        <button 
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log('Logout clicked');
-            logout();
-          }}
-          className="px-4 py-3 sm:px-4 sm:py-2 text-sm sm:text-base min-h-[44px] sm:min-h-auto cursor-pointer"
-          style={{ 
-            pointerEvents: 'auto',
-            position: 'relative',
-            zIndex: 9999,
-            background: '#c0c0c0',
-            border: '2px outset #c0c0c0',
-            color: '#000000',
-            borderRadius: 0
-          }}
-          onMouseDown={(e) => {
-            e.currentTarget.style.border = '2px inset #c0c0c0';
-          }}
-          onMouseUp={(e) => {
-            e.currentTarget.style.border = '2px outset #c0c0c0';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.border = '2px outset #c0c0c0';
-          }}
+      {/* コントロールパネル（スマホで固定表示）- スクリーンショット時は非表示 */}
+      {!isScreenshotMode && (
+        <div 
+          className="fixed top-4 right-4 flex flex-col gap-3 sm:gap-2 sm:absolute" 
+          style={{ zIndex: 9999 }}
         >
-          ログアウト
-        </button>
-        <button 
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setShowTerminal(!showTerminal);
-          }}
-          className="px-4 py-3 sm:px-4 sm:py-2 text-sm sm:text-base min-h-[44px] sm:min-h-auto whitespace-nowrap cursor-pointer"
-          style={{ 
-            pointerEvents: 'auto',
-            position: 'relative',
-            zIndex: 9999,
-            background: '#c0c0c0',
-            border: '2px outset #c0c0c0',
-            color: '#000000',
-            borderRadius: 0
-          }}
-          onMouseDown={(e) => {
-            e.currentTarget.style.border = '2px inset #c0c0c0';
-          }}
-          onMouseUp={(e) => {
-            e.currentTarget.style.border = '2px outset #c0c0c0';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.border = '2px inset #c0c0c0';
-          }}
-        >
-          {showTerminal ? 'ターミナルを隠す' : 'ターミナルを表示'}
-        </button>
-      </div>
+          {/* ログアウトボタン */}
+          <button 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Logout clicked');
+              logout();
+            }}
+            className="flex items-center justify-center min-h-[44px] sm:min-h-auto cursor-pointer hover:bg-gray-300 transition-colors duration-150"
+            style={{ 
+              pointerEvents: 'auto',
+              position: 'relative',
+              zIndex: 9999,
+              background: '#c0c0c0',
+              border: '2px outset #c0c0c0',
+              color: '#000000',
+              borderRadius: 0,
+              width: '44px',
+              height: '44px'
+            }}
+            onMouseDown={(e) => {
+              e.currentTarget.style.border = '2px inset #c0c0c0';
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.style.border = '2px outset #c0c0c0';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.border = '2px outset #c0c0c0';
+            }}
+          >
+            <LogOut size={20} />
+          </button>
+
+          {/* ポストボタン */}
+          <button 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowTerminal(!showTerminal);
+            }}
+            className="flex items-center justify-center min-h-[44px] sm:min-h-auto cursor-pointer hover:bg-gray-300 transition-colors duration-150"
+            style={{ 
+              pointerEvents: 'auto',
+              position: 'relative',
+              zIndex: 9999,
+              background: showTerminal ? '#a0a0a0' : '#c0c0c0',
+              border: showTerminal ? '2px inset #c0c0c0' : '2px outset #c0c0c0',
+              color: '#000000',
+              borderRadius: 0,
+              width: '44px',
+              height: '44px'
+            }}
+            onMouseDown={(e) => {
+              if (!showTerminal) {
+                e.currentTarget.style.border = '2px inset #c0c0c0';
+              }
+            }}
+            onMouseUp={(e) => {
+              if (!showTerminal) {
+                e.currentTarget.style.border = '2px outset #c0c0c0';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!showTerminal) {
+                e.currentTarget.style.border = '2px outset #c0c0c0';
+              }
+            }}
+          >
+            <MessageSquarePlus size={20} />
+          </button>
+
+          {/* スクリーンショットボタン */}
+          <button 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              // スクリーンショット機能を呼び出す
+              const event = new CustomEvent('takeScreenshot');
+              window.dispatchEvent(event);
+            }}
+            className="flex items-center justify-center min-h-[44px] sm:min-h-auto cursor-pointer hover:bg-gray-300 transition-colors duration-150"
+            style={{ 
+              pointerEvents: 'auto',
+              position: 'relative',
+              zIndex: 9999,
+              background: '#c0c0c0',
+              border: '2px outset #c0c0c0',
+              color: '#000000',
+              borderRadius: 0,
+              width: '44px',
+              height: '44px'
+            }}
+            onMouseDown={(e) => {
+              e.currentTarget.style.border = '2px inset #c0c0c0';
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.style.border = '2px outset #c0c0c0';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.border = '2px outset #c0c0c0';
+            }}
+          >
+            <Camera size={20} />
+          </button>
+        </div>
+      )}
       
       {/* ターミナル（キーボード対応） */}
       {showTerminal && (
@@ -145,7 +198,9 @@ export default function Page() {
           style={{
             bottom: viewportHeight > 0 && viewportHeight < window.innerHeight 
               ? `${window.innerHeight - viewportHeight + 16}px` 
-              : '16px'
+              : '16px',
+            transform: 'translateZ(0)', // ハードウェアアクセラレーションを有効化
+            willChange: 'transform' // パフォーマンス最適化
           }}
         >
           <TerminalStream onClose={() => setShowTerminal(false)} />

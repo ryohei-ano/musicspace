@@ -237,13 +237,13 @@ export default function Page() {
           >
             パスワード:
           </label>
-          <div className="relative mb-4">
+          <div className="mb-4">
             <input
-              type={showPassword ? "text" : "password"}
+              type="password"
               placeholder="パスワードを入力"
               value={pass}
               onChange={(e) => setPass(e.target.value)}
-              className="w-full p-2 pr-10 text-sm"
+              className="w-full p-2 text-sm"
               style={{
                 fontSize: '16px', // iOS Safari ズーム防止
                 WebkitAppearance: 'none',
@@ -256,29 +256,6 @@ export default function Page() {
               onKeyDown={handleKeyDown}
               autoFocus
             />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 w-5 cursor-pointer flex items-center justify-center text-xs"
-              style={{
-                background: '#c0c0c0',
-                border: '1px outset #c0c0c0',
-                color: '#000000',
-                height: 'calc(100% - 8px)', // 入力フォームの高さより少し小さく
-                maxHeight: '28px' // 最大高さを制限
-              }}
-              onMouseDown={(e) => {
-                e.currentTarget.style.border = '1px inset #c0c0c0';
-              }}
-              onMouseUp={(e) => {
-                e.currentTarget.style.border = '1px outset #c0c0c0';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.border = '1px outset #c0c0c0';
-              }}
-            >
-              {showPassword ? '●' : '○'}
-            </button>
           </div>
           <button 
             onClick={submit}

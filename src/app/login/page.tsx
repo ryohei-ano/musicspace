@@ -280,7 +280,7 @@ export default function Page() {
           <div className="mb-4">
             <input
               type="password"
-              placeholder="パスワードを入力"
+              placeholder="Enter your passcode"
               value={pass}
               onChange={(e) => setPass(e.target.value)}
               className="w-full p-2 text-sm"

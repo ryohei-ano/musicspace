@@ -17,6 +17,7 @@ export default function VideoPlane({ videoSrc, position, delay, scale = 1 }: Vid
   const [videoTexture, setVideoTexture] = useState<THREE.VideoTexture | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     // 動画要素を事前に作成して読み込み開始
@@ -28,27 +29,66 @@ export default function VideoPlane({ videoSrc, position, delay, scale = 1 }: Vid
     video.playsInline = true;
     video.preload = 'metadata'; // メタデータのみ事前読み込み
     
-    // パフォーマンス最適化の設定
+    // モバイル対応の設定
     video.setAttribute('playsinline', 'true');
     video.setAttribute('webkit-playsinline', 'true');
+    video.setAttribute('muted', 'true');
+    video.setAttribute('autoplay', 'false'); // 自動再生を無効化
     
+    // エラーハンドリング
+    const handleError = (error: Event) => {
+      console.error('Video loading error:', error);
+      setHasError(true);
+    };
+
     // 動画が読み込まれたらテクスチャを作成
     const handleLoadedData = () => {
-      const texture = new THREE.VideoTexture(video);
-      texture.minFilter = THREE.LinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-      texture.format = THREE.RGBAFormat; // 元の色を保持するためRGBAFormat
-      setVideoTexture(texture);
-      setIsLoaded(true);
+      try {
+        const texture = new THREE.VideoTexture(video);
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.format = THREE.RGBAFormat;
+        texture.flipY = false; // モバイル対応
+        setVideoTexture(texture);
+        setIsLoaded(true);
+      } catch (error) {
+        console.error('Video texture creation failed:', error);
+        setHasError(true);
+      }
     };
 
     const handleCanPlay = () => {
-      // 動画再生準備完了
-      video.play().catch(console.error);
+      // モバイルブラウザ対応：ユーザーインタラクション後に再生
+      const tryPlay = async () => {
+        try {
+          // モバイルでの再生を強制的に試行
+          video.currentTime = 0;
+          await video.play();
+        } catch (error) {
+          console.warn('Video autoplay failed:', error);
+          // 自動再生に失敗した場合は静止画として表示
+        }
+      };
+
+      // 即座に再生を試行
+      tryPlay();
+
+      // ユーザーインタラクション後に再生を再試行
+      const handleUserInteraction = () => {
+        tryPlay();
+        document.removeEventListener('touchstart', handleUserInteraction);
+        document.removeEventListener('click', handleUserInteraction);
+      };
+
+      document.addEventListener('touchstart', handleUserInteraction, { once: true });
+      document.addEventListener('click', handleUserInteraction, { once: true });
     };
 
+    // より多くのイベントリスナーを追加
     video.addEventListener('loadeddata', handleLoadedData);
     video.addEventListener('canplay', handleCanPlay);
+    video.addEventListener('error', handleError);
+    video.addEventListener('loadstart', () => console.log('Video load started:', videoSrc));
 
     videoRef.current = video;
 
@@ -61,11 +101,13 @@ export default function VideoPlane({ videoSrc, position, delay, scale = 1 }: Vid
       clearTimeout(timer);
       video.removeEventListener('loadeddata', handleLoadedData);
       video.removeEventListener('canplay', handleCanPlay);
+      video.removeEventListener('error', handleError);
       if (videoTexture) {
         videoTexture.dispose();
       }
       video.pause();
       video.src = '';
+      video.load(); // リソースを完全にクリア
     };
   }, [videoSrc, delay]);
 

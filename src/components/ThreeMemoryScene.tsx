@@ -145,23 +145,26 @@ function SceneContent() {
       )
       .subscribe();
 
-    // 15秒ごとに新しいランダムなテキストを表示
+    // クリーンアップ
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []); // 依存関係を空配列に変更
+
+  // 15秒ごとのランダム表示を別のuseEffectに分離
+  useEffect(() => {
     const interval = setInterval(() => {
       if (allMemories.length > 0) {
         const randomMemories = selectRandomMemories(allMemories);
         setDisplayedMemories(randomMemories);
         setRefreshKey(prev => prev + 1);
-      } else {
-        fetchMemories();
       }
     }, 15000);
 
-    // クリーンアップ
     return () => {
       clearInterval(interval);
-      supabase.removeChannel(channel);
     };
-  }, [allMemories]);
+  }, [allMemories]); // allMemoriesが変更された時のみ実行
 
   if (loading) {
     return <LoadingText />;

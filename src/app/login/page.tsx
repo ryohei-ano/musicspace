@@ -32,6 +32,93 @@ export default function Page() {
       className="relative flex flex-col items-center justify-center min-h-screen px-4"
       style={{ backgroundColor: '#265CAC' }}
     >
+      {/* Film Grain / White Noise */}
+      <div 
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: `
+            radial-gradient(circle at 10% 20%, rgba(255,255,255,0.008) 0%, transparent 50%),
+            radial-gradient(circle at 80% 80%, rgba(255,255,255,0.006) 0%, transparent 50%),
+            radial-gradient(circle at 40% 40%, rgba(255,255,255,0.004) 0%, transparent 50%),
+            radial-gradient(circle at 90% 10%, rgba(255,255,255,0.005) 0%, transparent 50%),
+            radial-gradient(circle at 30% 70%, rgba(255,255,255,0.007) 0%, transparent 50%)
+          `,
+          backgroundSize: '2px 2px, 3px 3px, 1px 1px, 4px 4px, 2px 2px',
+          animation: 'filmGrain 0.1s infinite linear',
+          opacity: 0.6,
+          zIndex: 1
+        }}
+      />
+
+      {/* Digital Glitch */}
+      <div 
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: `
+            linear-gradient(90deg, transparent 98%, rgba(255,0,255,0.003) 99%, transparent 100%),
+            linear-gradient(90deg, transparent 97%, rgba(0,255,255,0.003) 98%, transparent 100%)
+          `,
+          backgroundSize: '100px 1px, 150px 1px',
+          animation: 'digitalGlitch 3s infinite linear',
+          zIndex: 1
+        }}
+      />
+
+      <style jsx>{`
+        @keyframes filmGrain {
+          0% { 
+            background-position: 0px 0px, 0px 0px, 0px 0px, 0px 0px, 0px 0px;
+            transform: translate(0px, 0px);
+          }
+          10% { 
+            background-position: -1px 1px, 1px -1px, 1px 1px, -1px -1px, 1px 0px;
+            transform: translate(0.1px, 0px);
+          }
+          20% { 
+            background-position: 1px 0px, -1px 1px, 0px -1px, 1px 1px, -1px 1px;
+            transform: translate(-0.1px, 0px);
+          }
+          30% { 
+            background-position: 0px -1px, 1px 0px, -1px 0px, 0px 1px, 1px -1px;
+            transform: translate(0px, 0.1px);
+          }
+          40% { 
+            background-position: -1px 0px, 0px -1px, 1px 0px, -1px 1px, 0px 1px;
+            transform: translate(0px, -0.1px);
+          }
+          50% { 
+            background-position: 1px 1px, -1px 0px, 0px 1px, 1px -1px, -1px 0px;
+            transform: translate(0.1px, 0.1px);
+          }
+          60% { 
+            background-position: 0px 1px, 1px 1px, -1px -1px, 0px 0px, 1px 1px;
+            transform: translate(-0.1px, -0.1px);
+          }
+          70% { 
+            background-position: -1px -1px, 0px 1px, 1px -1px, -1px 0px, 0px -1px;
+            transform: translate(0px, 0px);
+          }
+          80% { 
+            background-position: 1px -1px, -1px -1px, 0px 0px, 1px 0px, -1px -1px;
+            transform: translate(0.1px, -0.1px);
+          }
+          90% { 
+            background-position: 0px 0px, 1px -1px, -1px 1px, 0px -1px, 1px 0px;
+            transform: translate(-0.1px, 0.1px);
+          }
+          100% { 
+            background-position: 0px 0px, 0px 0px, 0px 0px, 0px 0px, 0px 0px;
+            transform: translate(0px, 0px);
+          }
+        }
+        
+        @keyframes digitalGlitch {
+          0% { background-position: 0px 0px, 0px 0px; }
+          33% { background-position: 10px 0px, -5px 0px; }
+          66% { background-position: -8px 0px, 12px 0px; }
+          100% { background-position: 0px 0px, 0px 0px; }
+        }
+      `}</style>
       {/* ロゴ（左上） */}
       <div 
         className="absolute top-4 left-4" 

@@ -7,6 +7,28 @@ export default function Page() {
   const router = useRouter();
   const [pass, setPass] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [backgroundVideo, setBackgroundVideo] = useState('');
+
+  // ランダムな背景動画を選択
+  useEffect(() => {
+    const videoFiles = [
+      '/video/01.mp4',
+      '/video/02.mp4',
+      '/video/03.mp4',
+      '/video/04.mp4',
+      '/video/05.mp4',
+      '/video/06.mp4',
+      '/video/07.mp4',
+      '/video/08.mp4',
+      '/video/09.mp4',
+      '/video/10.mp4',
+      '/video/11.mp4',
+      '/video/12.mp4'
+    ];
+    
+    const randomIndex = Math.floor(Math.random() * videoFiles.length);
+    setBackgroundVideo(videoFiles[randomIndex]);
+  }, []);
 
   // ログインページでは常にパスワード入力を求める
   // useEffectでの自動リダイレクトを削除
@@ -30,9 +52,31 @@ export default function Page() {
 
   return (
     <div 
-      className="relative flex flex-col items-center justify-center min-h-screen px-4"
+      className="relative flex flex-col items-center justify-center min-h-screen px-4 overflow-hidden"
       style={{ backgroundColor: '#265CAC' }}
     >
+      {/* 背景動画 */}
+      {backgroundVideo && (
+        <video
+          autoPlay
+          muted
+          loop
+          playsInline
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ zIndex: 0 }}
+        >
+          <source src={backgroundVideo} type="video/mp4" />
+        </video>
+      )}
+      
+      {/* 背景オーバーレイ（動画を少し暗くする） */}
+      <div 
+        className="absolute inset-0"
+        style={{
+          backgroundColor: 'rgba(0, 0, 0, 0.4)',
+          zIndex: 1
+        }}
+      />
       {/* Film Grain / White Noise */}
       <div 
         className="absolute inset-0 pointer-events-none"
@@ -160,7 +204,8 @@ export default function Page() {
           background: '#c0c0c0',
           border: '2px outset #c0c0c0',
           borderRadius: '0',
-          boxShadow: 'inset -1px -1px #808080, inset 1px 1px #dfdfdf, inset -2px -2px #808080, inset 2px 2px #dfdfdf'
+          boxShadow: 'inset -1px -1px #808080, inset 1px 1px #dfdfdf, inset -2px -2px #808080, inset 2px 2px #dfdfdf, 0 8px 32px rgba(0,0,0,0.6)',
+          zIndex: 9999
         }}
       >
         {/* タイトルバー */}
@@ -172,7 +217,7 @@ export default function Page() {
             borderBottom: '1px solid #808080'
           }}
         >
-          <span className="font-bold">ログイン</span>
+          <span className="font-bold">青春は、バグだ。</span>
           <div className="flex space-x-1">
             <div className="w-3 h-3 bg-gray-400" style={{ border: '1px outset #c0c0c0' }}></div>
             <div className="w-3 h-3 bg-gray-400" style={{ border: '1px outset #c0c0c0' }}></div>

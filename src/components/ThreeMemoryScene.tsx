@@ -198,11 +198,11 @@ function SceneContent() {
     ];
   };
 
-  // ランダムにメモリを選択する関数（最適化版）
-  const selectRandomMemories = (memories: Memory[], count: number = 30) => {
+  // ランダムにメモリを選択する関数（表示件数を適度に調整）
+  const selectRandomMemories = (memories: Memory[], count: number = 50) => {
     if (memories.length === 0) return [];
     
-    // 表示数を削減して初期ロードを高速化
+    // 表示数を50件に調整
     const result: Memory[] = [];
     for (let i = 0; i < Math.min(count, memories.length * 2); i++) {
       const randomIndex = Math.floor(Math.random() * memories.length);
@@ -288,14 +288,14 @@ function SceneContent() {
           // 新しいメモリを最新メモリリストに追加
           setRecentMemories(prev => [...prev, newMemory]);
           
-          setAllMemories(prev => {
-            const updated = [...prev, newMemory];
-            // 新しいランダム選択を実行（最新メモリ以外）
-            const randomMemories = selectRandomMemories(updated, 30);
-            setDisplayedMemories(randomMemories);
-            setRefreshKey(prev => prev + 1);
-            return updated;
-          });
+            setAllMemories(prev => {
+              const updated = [...prev, newMemory];
+              // 新しいランダム選択を実行（最新メモリ以外）- 件数を50に調整
+              const randomMemories = selectRandomMemories(updated, 50);
+              setDisplayedMemories(randomMemories);
+              setRefreshKey(prev => prev + 1);
+              return updated;
+            });
           
           // 15秒後に最新メモリを通常の位置に移動
           setTimeout(() => {

@@ -63,49 +63,111 @@ export default function Page() {
         <video
           ref={(video) => {
             if (video) {
-              // モバイル対応の動画設定
+              // Safari対応の強化された動画設定
               video.muted = true;
+              video.defaultMuted = true;
               video.playsInline = true;
               video.loop = true;
+              video.autoplay = false; // 明示的にfalse
+              video.controls = false;
+              video.preload = 'auto'; // Safariでは'auto'が効果的
+              
+              // Safari特有の属性設定
               video.setAttribute('playsinline', 'true');
               video.setAttribute('webkit-playsinline', 'true');
               video.setAttribute('muted', 'true');
+              video.setAttribute('autoplay', 'false');
+              video.setAttribute('x-webkit-airplay', 'deny');
               
-              // 動画の読み込み完了後に再生を試行
+              // Safari用のスタイル設定
+              video.style.objectFit = 'cover';
+              video.style.width = '100%';
+              video.style.height = '100%';
+              
+              let playAttempted = false;
+              
+              // より積極的な再生試行関数
               const tryPlay = async () => {
+                if (playAttempted) return;
+                playAttempted = true;
+                
                 try {
-                  await video.play();
+                  // Safari用の準備チェック
+                  if (video.readyState >= 2 && video.videoWidth > 0) {
+                    video.currentTime = 0;
+                    const playPromise = video.play();
+                    
+                    if (playPromise !== undefined) {
+                      await playPromise;
+                      console.log('Background video playing successfully');
+                    }
+                  } else {
+                    playAttempted = false; // 再試行を許可
+                  }
                 } catch (error) {
                   console.warn('Background video autoplay failed:', error);
-                  // 自動再生に失敗した場合、ユーザーインタラクション後に再生
-                  const handleUserInteraction = async () => {
+                  playAttempted = false; // 再試行を許可
+                  
+                  // ユーザーインタラクション後に再生を試行
+                  const handleUserInteraction = async (event: Event) => {
                     try {
-                      await video.play();
-                      document.removeEventListener('touchstart', handleUserInteraction);
-                      document.removeEventListener('click', handleUserInteraction);
-                      document.removeEventListener('keydown', handleUserInteraction);
+                      if (video.paused) {
+                        await video.play();
+                        console.log('Background video started after user interaction');
+                        
+                        // 成功したらリスナーを削除
+                        document.removeEventListener('touchstart', handleUserInteraction);
+                        document.removeEventListener('touchend', handleUserInteraction);
+                        document.removeEventListener('click', handleUserInteraction);
+                        document.removeEventListener('keydown', handleUserInteraction);
+                        document.removeEventListener('mousedown', handleUserInteraction);
+                      }
                     } catch (e) {
                       console.warn('Video play after interaction failed:', e);
                     }
                   };
                   
-                  document.addEventListener('touchstart', handleUserInteraction, { once: true });
-                  document.addEventListener('click', handleUserInteraction, { once: true });
-                  document.addEventListener('keydown', handleUserInteraction, { once: true });
+                  // 複数のイベントタイプでリッスン
+                  document.addEventListener('touchstart', handleUserInteraction, { passive: true });
+                  document.addEventListener('touchend', handleUserInteraction, { passive: true });
+                  document.addEventListener('click', handleUserInteraction, { passive: true });
+                  document.addEventListener('keydown', handleUserInteraction, { passive: true });
+                  document.addEventListener('mousedown', handleUserInteraction, { passive: true });
                 }
               };
               
-              if (video.readyState >= 3) {
+              // 複数のイベントで再生を試行
+              const handleLoadedData = () => {
+                console.log('Video loaded data');
+                setTimeout(tryPlay, 100); // 少し遅延
+              };
+              
+              const handleCanPlay = () => {
+                console.log('Video can play');
+                setTimeout(tryPlay, 50);
+              };
+              
+              const handleLoadedMetadata = () => {
+                console.log('Video metadata loaded');
                 tryPlay();
-              } else {
-                video.addEventListener('canplay', tryPlay, { once: true });
+              };
+              
+              // イベントリスナーを追加
+              video.addEventListener('loadeddata', handleLoadedData);
+              video.addEventListener('loadedmetadata', handleLoadedMetadata);
+              video.addEventListener('canplay', handleCanPlay);
+              video.addEventListener('canplaythrough', tryPlay);
+              
+              // 即座に状態をチェック
+              if (video.readyState >= 2) {
+                setTimeout(tryPlay, 200);
               }
             }
           }}
           muted
           loop
           playsInline
-          preload="metadata"
+          preload="auto"
           className="absolute inset-0 w-full h-full object-cover"
           style={{ zIndex: 0 }}
         >

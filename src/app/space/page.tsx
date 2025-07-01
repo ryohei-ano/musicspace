@@ -104,7 +104,10 @@ export default function Page() {
 
   // 認証済みユーザーのみ表示
   return (
-    <div className="relative w-full h-screen overflow-hidden">
+    <div 
+      className="relative w-full h-screen overflow-hidden"
+      style={{ backgroundColor: currentTheme.backgroundColor }}
+    >
       {/* 3Dメモリシーン */}
       <ThreeMemoryScene />
       

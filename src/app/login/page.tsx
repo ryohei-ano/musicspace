@@ -109,7 +109,7 @@ export default function Page() {
                   playAttempted = false; // 再試行を許可
                   
                   // ユーザーインタラクション後に再生を試行
-                  const handleUserInteraction = async (event: Event) => {
+                  const handleUserInteraction = async () => {
                     try {
                       if (video.paused) {
                         await video.play();

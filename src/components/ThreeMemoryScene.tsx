@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, Suspense, useRef } from 'react';
+import { useState, useEffect, Suspense, useRef, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stars, Text } from '@react-three/drei';
 import { supabase } from '@/lib/supabase';
-import MemoryText from './MemoryText';
+import MemoryText, { Theme } from './MemoryText';
 import VideoPlane from './VideoPlane';
 
 interface Memory {
@@ -50,7 +50,7 @@ const generateRandomPosition = (index: number): [number, number, number] => {
 };
 
 // ローディング表示コンポーネント
-function LoadingText({ progress }: { progress: number }) {
+function LoadingText({ progress, theme }: { progress: number; theme: Theme }) {
   // プログレスに基づいてバーの幅を計算
   const barWidth = (progress / 100) * 3.6; // 最大3.6の幅
   const barPosition = -1.8 + (barWidth / 2); // 左端から開始
@@ -61,7 +61,7 @@ function LoadingText({ progress }: { progress: number }) {
       <Text
         position={[0, 1, 0]}
         fontSize={0.5}
-        color="#ffffff"
+        color={theme.textColor}
         anchorX="center"
         anchorY="middle"
       >
@@ -71,7 +71,7 @@ function LoadingText({ progress }: { progress: number }) {
       {/* Loading bar background (outer border) */}
       <mesh position={[0, 0, 0]}>
         <boxGeometry args={[4, 0.4, 0.1]} />
-        <meshBasicMaterial color="#ffffff" />
+        <meshBasicMaterial color={theme.textColor} />
       </mesh>
       
       {/* Loading bar background (inner) - transparent */}
@@ -84,7 +84,7 @@ function LoadingText({ progress }: { progress: number }) {
       {barWidth > 0 && (
         <mesh position={[barPosition, 0, 0.1]}>
           <boxGeometry args={[barWidth, 0.2, 0.1]} />
-          <meshBasicMaterial color="#ffffff" />
+          <meshBasicMaterial color={theme.textColor} />
         </mesh>
       )}
       
@@ -98,7 +98,7 @@ function LoadingText({ progress }: { progress: number }) {
           <mesh key={i} position={[segmentX, 0, 0.15]}>
             <boxGeometry args={[0.3, 0.15, 0.05]} />
             <meshBasicMaterial 
-              color="#ffffff" 
+              color={theme.textColor} 
               transparent 
               opacity={segmentOpacity}
             />
@@ -169,8 +169,32 @@ const videoFiles = [
   '/video/12.mp4'
 ];
 
+// テーマ定義
+const themes: Theme[] = [
+  {
+    name: 'ポカリブルー',
+    backgroundColor: '#265CAC',
+    textColor: '#ffffff'
+  },
+  {
+    name: '蛍光緑',
+    backgroundColor: '#00ff00',
+    textColor: '#000000'
+  },
+  {
+    name: 'ホワイト',
+    backgroundColor: '#ffffff',
+    textColor: '#000000'
+  },
+  {
+    name: 'ブラック',
+    backgroundColor: '#000000',
+    textColor: '#ffffff'
+  }
+];
+
 // シーンの内容
-function SceneContent() {
+function SceneContent({ currentTheme }: { currentTheme: Theme }) {
   const [allMemories, setAllMemories] = useState<Memory[]>([]);
   const [displayedMemories, setDisplayedMemories] = useState<Memory[]>([]);
   const [recentMemories, setRecentMemories] = useState<Memory[]>([]);
@@ -345,7 +369,7 @@ function SceneContent() {
   }, []);
 
   if (loading) {
-    return <LoadingText progress={loadingProgress} />;
+    return <LoadingText progress={loadingProgress} theme={currentTheme} />;
   }
 
   if (error) {
@@ -385,16 +409,18 @@ function SceneContent() {
       <pointLight position={[10, 10, 10]} intensity={1} />
       <pointLight position={[-10, -10, -10]} intensity={0.5} />
       
-      {/* 星空背景 */}
-      <Stars 
-        radius={100} 
-        depth={50} 
-        count={5000} 
-        factor={4} 
-        saturation={0} 
-        fade 
-        speed={1}
-      />
+      {/* 星空背景（白背景時は非表示） */}
+      {currentTheme.backgroundColor !== '#ffffff' && (
+        <Stars 
+          radius={100} 
+          depth={50} 
+          count={5000} 
+          factor={4} 
+          saturation={0} 
+          fade 
+          speed={1}
+        />
+      )}
       
       {/* 最新のメモリをカメラに一番近い位置に表示 */}
       {recentMemories.map((memory, index) => (
@@ -405,6 +431,7 @@ function SceneContent() {
           delay={0}
           scale={2.0} // より大きく表示
           isLatest={true} // 最新の投稿として緑色で表示
+          theme={currentTheme}
         />
       ))}
       
@@ -415,6 +442,7 @@ function SceneContent() {
           memory={memory}
           position={generateRandomPosition(index)}
           delay={index * 50} // 50msずつずらしてアニメーション開始（高速化）
+          theme={currentTheme}
         />
       ))}
       
@@ -448,9 +476,45 @@ export default function ThreeMemoryScene() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isScreenshotMode, setIsScreenshotMode] = useState(false);
   const [userInteracted, setUserInteracted] = useState(false);
+  const [currentThemeIndex, setCurrentThemeIndex] = useState(0);
+
+  // 現在のテーマを取得
+  const currentTheme = themes[currentThemeIndex];
+
+  // テーマ切り替え関数
+  const switchTheme = () => {
+    const nextIndex = (currentThemeIndex + 1) % themes.length;
+    setCurrentThemeIndex(nextIndex);
+    // ローカルストレージに保存
+    localStorage.setItem('themeIndex', nextIndex.toString());
+    // カスタムイベントを発火してspace/page.tsxに通知
+    const event = new CustomEvent('themeChanged', {
+      detail: { themeIndex: nextIndex }
+    });
+    window.dispatchEvent(event);
+  };
+
+  // ローカルストレージからテーマを復元（ログイン中のみ）
+  useEffect(() => {
+    const auth = localStorage.getItem('auth');
+    if (auth === '1') {
+      // ログイン中の場合のみテーマを復元
+      const savedThemeIndex = localStorage.getItem('themeIndex');
+      if (savedThemeIndex) {
+        const index = parseInt(savedThemeIndex, 10);
+        if (index >= 0 && index < themes.length) {
+          setCurrentThemeIndex(index);
+        }
+      }
+    } else {
+      // 未ログインの場合はデフォルトテーマ（青）にリセット
+      setCurrentThemeIndex(0);
+      localStorage.removeItem('themeIndex');
+    }
+  }, []);
 
   // スクリーンショット機能
-  const takeScreenshot = async () => {
+  const takeScreenshot = useCallback(async () => {
     setIsScreenshotMode(true);
     
     // オーバーレイ要素が表示されるまで少し待つ
@@ -479,8 +543,8 @@ export default function ThreeMemoryScene() {
         compositeCanvas.width = baseHeight * aspectRatio; // 1800px (3:4比率)
         compositeCanvas.height = baseHeight;
 
-        // 背景色を設定
-        ctx.fillStyle = '#265CAC';
+        // 背景色を現在のテーマに設定
+        ctx.fillStyle = currentTheme.backgroundColor;
         ctx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
 
         // Three.jsの画像を描画
@@ -509,14 +573,41 @@ export default function ThreeMemoryScene() {
           // アスペクト比を保持して描画
           ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
 
-          // ポカリロゴを描画（高解像度対応）
+          // SVGロゴを描画（テーマ色に対応）
+          const svgString = `
+            <svg width="128" height="77" viewBox="0 0 362 218" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <g clip-path="url(#clip0_676_14764)">
+                <path d="M361.588 147.35V212.3C353.558 213.23 345.548 214.72 337.498 215.54C282.898 221.12 232.098 215.89 179.978 199.32C122.008 180.89 74.1978 150.64 11.1278 150.62C9.97782 150.62 -0.00217999 150.88 0.00782001 150.32C20.2078 145.34 40.6478 140.18 61.4478 138.14C126.938 131.73 183.878 157.44 247.628 159.81C285.998 161.24 324.328 155.53 361.588 147.34V147.35Z" fill="${currentTheme.textColor}"/>
+                <path d="M79.5819 63.4519L89.5919 103.512L100.392 63.4219L117.412 63.5119L127.742 103.512L136.952 63.4519H152.112L136.362 118.072L120.962 118.162L108.532 75.9019L96.8419 118.072L80.7319 118.052L64.4219 63.4519H79.5819Z" fill="${currentTheme.textColor}"/>
+                <path d="M49.8028 78.6099H35.1928C34.9028 78.6099 35.4528 75.0899 33.3128 73.1799C26.2428 66.8799 14.4128 77.7599 25.2428 82.8799C33.2828 86.6799 47.8828 86.3499 51.0628 96.5799C54.2028 106.69 48.5128 115.25 38.7228 118.14C24.9028 122.23 4.87282 118.6 4.88282 100.81H19.4928C18.2328 110.14 32.7528 113.76 36.1228 105.81C40.2928 95.9899 21.2028 94.9999 15.3228 92.2499C4.21282 87.0599 3.07282 73.5399 13.0228 66.4699C23.6328 58.9399 51.0528 60.9699 49.7928 78.6199L49.8028 78.6099Z" fill="${currentTheme.textColor}"/>
+                <path d="M205.7 63.4514V72.6514H183.24C183.18 72.6514 182.43 73.4014 182.43 73.4614V84.5614H204.08V94.3014H182.43V107.831H206.79V118.111H167.82V63.4414H205.71L205.7 63.4514Z" fill="${currentTheme.textColor}"/>
+                <path d="M189.998 17.4415H175.658C175.158 17.4415 173.728 11.6715 168.928 10.6515C153.398 7.33152 152.098 32.8915 157.518 42.0915C162.328 50.2615 174.608 48.0815 175.938 38.5615H190.548C190.688 57.8515 163.318 61.1615 150.318 53.0815C136.198 44.3115 136.978 15.9415 149.408 5.81152C161.718 -4.22848 188.848 -1.77847 190.008 17.4515L189.998 17.4415Z" fill="${currentTheme.textColor}"/>
+                <path d="M332.362 63.4492V73.7392H315.042V118.119H300.422V73.7392H283.102V63.4492H332.362Z" fill="${currentTheme.textColor}"/>
+                <path d="M361.59 1.19922H346.43V55.8692H361.59V1.19922Z" fill="${currentTheme.textColor}"/>
+                <path d="M312.867 28.7986C312.457 27.2086 314.457 27.7186 315.697 27.0386C321.637 23.8186 322.707 18.1286 322.057 11.7586C321.297 4.3086 314.327 1.8086 307.717 1.19859C297.657 0.268595 286.257 1.88859 276.047 1.19859V55.8686H291.207V34.7586H302.307C307.827 34.7586 305.227 52.8586 309.347 55.8686H324.237C318.587 47.2986 324.567 32.8886 312.867 28.7986ZM302.317 24.4786H291.217V10.9486H302.857C304.437 10.9486 306.247 12.5686 306.927 13.3786C309.967 16.9586 307.727 24.4486 302.317 24.4886V24.4786Z" fill="${currentTheme.textColor}"/>
+                <path d="M91.9062 0.279588C74.0062 2.05959 66.2762 15.9196 67.6662 32.8596C70.2362 64.0996 114.616 64.7696 120.556 37.0496C125.046 16.0996 115.086 -2.02041 91.9062 0.279588ZM90.5462 46.2496C78.4862 41.6496 79.4462 12.5296 91.8662 9.98959C113.056 5.65959 111.046 54.0796 90.5462 46.2496Z" fill="${currentTheme.textColor}"/>
+                <path d="M258.488 63.9808C258.068 63.4408 257.478 63.5008 256.878 63.4308C254.078 63.1008 246.068 63.0808 243.288 63.4308C242.628 63.5108 242.198 63.3908 241.688 64.0008C241.288 64.4808 239.508 69.3008 238.988 70.5108C232.308 86.0308 226.918 102.141 219.998 117.581C219.518 117.911 220.508 118.681 220.578 118.681H233.028C234.798 117.231 236.528 107.871 237.978 107.391L261.118 107.281C261.728 107.451 263.908 117.661 265.508 118.681H280.398L258.488 63.9908V63.9808ZM241.418 98.0908L249.798 74.8108L257.648 98.0908H241.408H241.418Z" fill="${currentTheme.textColor}"/>
+                <path d="M239.546 1.16016L223.646 1.29016L201.906 55.8702H215.166L219.296 45.1202C222.266 45.4002 242.426 44.3802 243.096 45.3702L247.096 55.8802H262.526L239.546 1.16016ZM223.016 35.3102L231.406 11.4902L239.796 35.3102H223.016Z" fill="${currentTheme.textColor}"/>
+                <path d="M47.6491 5.78922C44.8891 3.02922 39.3491 1.19922 34.9191 1.19922H7.03906V55.8692H22.1991V35.2992H36.5391C39.9191 35.2992 44.6191 33.0292 46.1891 31.9592C53.4891 26.9892 53.8591 11.9992 47.6491 5.78922ZM35.6891 23.6192C34.4791 24.8292 31.8591 25.5592 30.5891 25.5592H22.1991V10.9492H32.7591C37.5291 10.9492 39.0891 20.2192 35.6891 23.6192Z" fill="${currentTheme.textColor}"/>
+              </g>
+              <defs>
+                <clipPath id="clip0_676_14764">
+                  <rect width="361.59" height="217.7" fill="white"/>
+                </clipPath>
+              </defs>
+            </svg>
+          `;
+          
+          const svgBlob = new Blob([svgString], { type: 'image/svg+xml' });
+          const svgUrl = URL.createObjectURL(svgBlob);
+          
           const logo = new Image();
           logo.onload = () => {
-            const logoSize = window.innerWidth < 640 ? 96 : 128; // 2倍サイズ
-            ctx.drawImage(logo, 32, 32, logoSize, logoSize * (logo.height / logo.width)); // 位置も2倍
+            ctx.drawImage(logo, 32, 32, 128, 77); // SVGのアスペクト比に合わせて調整
+            URL.revokeObjectURL(svgUrl); // メモリリークを防ぐ
 
-            // ハッシュタグを描画（高解像度対応）
-            ctx.fillStyle = '#ffffff';
+            // ハッシュタグを描画（高解像度対応、テーマ色に対応）
+            ctx.fillStyle = currentTheme.textColor;
             ctx.font = 'bold 36px Arial, sans-serif'; // フォントサイズ2倍
             ctx.textAlign = 'right';
             ctx.textBaseline = 'bottom';
@@ -548,10 +639,11 @@ export default function ThreeMemoryScene() {
             }
           };
           logo.onerror = () => {
-            console.warn('Logo failed to load, proceeding without logo');
+            console.warn('SVG Logo failed to load, proceeding without logo');
+            URL.revokeObjectURL(svgUrl);
             
-            // ハッシュタグのみ描画（高解像度対応）
-            ctx.fillStyle = '#ffffff';
+            // ハッシュタグのみ描画（高解像度対応、テーマ色に対応）
+            ctx.fillStyle = currentTheme.textColor;
             ctx.font = 'bold 36px Arial, sans-serif'; // フォントサイズ2倍
             ctx.textAlign = 'right';
             ctx.textBaseline = 'bottom';
@@ -571,7 +663,7 @@ export default function ThreeMemoryScene() {
               console.log('Screenshot saved successfully (without logo)');
             }
           };
-          logo.src = '/image/pocari_logo.webp';
+          logo.src = svgUrl;
         };
         img.onerror = () => {
           throw new Error('Failed to load Three.js canvas image');
@@ -585,7 +677,7 @@ export default function ThreeMemoryScene() {
         alert(`スクリーンショットの撮影に失敗しました。エラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }, 500);
-  };
+  }, [currentTheme]);
 
   // モバイル動画再生のためのユーザーインタラクションハンドラー
   useEffect(() => {
@@ -639,10 +731,10 @@ export default function ThreeMemoryScene() {
     return () => {
       window.removeEventListener('takeScreenshot', handleScreenshot);
     };
-  }, []);
+  }, [takeScreenshot]); // takeScreenshotを依存関係に追加
 
   return (
-    <div className="w-full h-screen" style={{ backgroundColor: '#265CAC' }}>
+    <div className="w-full h-screen" style={{ backgroundColor: currentTheme.backgroundColor }}>
       <Canvas
         ref={canvasRef}
         camera={{
@@ -657,43 +749,96 @@ export default function ThreeMemoryScene() {
           preserveDrawingBuffer: true // スクリーンショットのために必要
         }}
       >
-        <Suspense fallback={<LoadingText progress={0} />}>
-          <SceneContent />
+        <Suspense fallback={<LoadingText progress={0} theme={currentTheme} />}>
+          <SceneContent currentTheme={currentTheme} />
         </Suspense>
       </Canvas>
       
-      {/* スクリーンショット用オーバーレイ（スクリーンショット時のみ表示） */}
+      {/* ポカリロゴ（常に表示、テーマに応じて色変更） */}
+      <div 
+        className="fixed top-4 left-4"
+        style={{ zIndex: isScreenshotMode ? 10000 : 9999 }}
+      >
+        <svg 
+          width="64" 
+          height="38" 
+          viewBox="0 0 362 218" 
+          fill="none" 
+          xmlns="http://www.w3.org/2000/svg"
+          className="h-12 w-auto sm:h-16"
+          aria-label="POCARI Logo"
+        >
+          <g clipPath="url(#clip0_676_14764)">
+            <path d="M361.588 147.35V212.3C353.558 213.23 345.548 214.72 337.498 215.54C282.898 221.12 232.098 215.89 179.978 199.32C122.008 180.89 74.1978 150.64 11.1278 150.62C9.97782 150.62 -0.00217999 150.88 0.00782001 150.32C20.2078 145.34 40.6478 140.18 61.4478 138.14C126.938 131.73 183.878 157.44 247.628 159.81C285.998 161.24 324.328 155.53 361.588 147.34V147.35Z" fill={currentTheme.textColor}/>
+            <path d="M79.5819 63.4519L89.5919 103.512L100.392 63.4219L117.412 63.5119L127.742 103.512L136.952 63.4519H152.112L136.362 118.072L120.962 118.162L108.532 75.9019L96.8419 118.072L80.7319 118.052L64.4219 63.4519H79.5819Z" fill={currentTheme.textColor}/>
+            <path d="M49.8028 78.6099H35.1928C34.9028 78.6099 35.4528 75.0899 33.3128 73.1799C26.2428 66.8799 14.4128 77.7599 25.2428 82.8799C33.2828 86.6799 47.8828 86.3499 51.0628 96.5799C54.2028 106.69 48.5128 115.25 38.7228 118.14C24.9028 122.23 4.87282 118.6 4.88282 100.81H19.4928C18.2328 110.14 32.7528 113.76 36.1228 105.81C40.2928 95.9899 21.2028 94.9999 15.3228 92.2499C4.21282 87.0599 3.07282 73.5399 13.0228 66.4699C23.6328 58.9399 51.0528 60.9699 49.7928 78.6199L49.8028 78.6099Z" fill={currentTheme.textColor}/>
+            <path d="M205.7 63.4514V72.6514H183.24C183.18 72.6514 182.43 73.4014 182.43 73.4614V84.5614H204.08V94.3014H182.43V107.831H206.79V118.111H167.82V63.4414H205.71L205.7 63.4514Z" fill={currentTheme.textColor}/>
+            <path d="M189.998 17.4415H175.658C175.158 17.4415 173.728 11.6715 168.928 10.6515C153.398 7.33152 152.098 32.8915 157.518 42.0915C162.328 50.2615 174.608 48.0815 175.938 38.5615H190.548C190.688 57.8515 163.318 61.1615 150.318 53.0815C136.198 44.3115 136.978 15.9415 149.408 5.81152C161.718 -4.22848 188.848 -1.77847 190.008 17.4515L189.998 17.4415Z" fill={currentTheme.textColor}/>
+            <path d="M332.362 63.4492V73.7392H315.042V118.119H300.422V73.7392H283.102V63.4492H332.362Z" fill={currentTheme.textColor}/>
+            <path d="M361.59 1.19922H346.43V55.8692H361.59V1.19922Z" fill={currentTheme.textColor}/>
+            <path d="M312.867 28.7986C312.457 27.2086 314.457 27.7186 315.697 27.0386C321.637 23.8186 322.707 18.1286 322.057 11.7586C321.297 4.3086 314.327 1.8086 307.717 1.19859C297.657 0.268595 286.257 1.88859 276.047 1.19859V55.8686H291.207V34.7586H302.307C307.827 34.7586 305.227 52.8586 309.347 55.8686H324.237C318.587 47.2986 324.567 32.8886 312.867 28.7986ZM302.317 24.4786H291.217V10.9486H302.857C304.437 10.9486 306.247 12.5686 306.927 13.3786C309.967 16.9586 307.727 24.4486 302.317 24.4886V24.4786Z" fill={currentTheme.textColor}/>
+            <path d="M91.9062 0.279588C74.0062 2.05959 66.2762 15.9196 67.6662 32.8596C70.2362 64.0996 114.616 64.7696 120.556 37.0496C125.046 16.0996 115.086 -2.02041 91.9062 0.279588ZM90.5462 46.2496C78.4862 41.6496 79.4462 12.5296 91.8662 9.98959C113.056 5.65959 111.046 54.0796 90.5462 46.2496Z" fill={currentTheme.textColor}/>
+            <path d="M258.488 63.9808C258.068 63.4408 257.478 63.5008 256.878 63.4308C254.078 63.1008 246.068 63.0808 243.288 63.4308C242.628 63.5108 242.198 63.3908 241.688 64.0008C241.288 64.4808 239.508 69.3008 238.988 70.5108C232.308 86.0308 226.918 102.141 219.998 117.581C219.518 117.911 220.508 118.681 220.578 118.681H233.028C234.798 117.231 236.528 107.871 237.978 107.391L261.118 107.281C261.728 107.451 263.908 117.661 265.508 118.681H280.398L258.488 63.9908V63.9808ZM241.418 98.0908L249.798 74.8108L257.648 98.0908H241.408H241.418Z" fill={currentTheme.textColor}/>
+            <path d="M239.546 1.16016L223.646 1.29016L201.906 55.8702H215.166L219.296 45.1202C222.266 45.4002 242.426 44.3802 243.096 45.3702L247.096 55.8802H262.526L239.546 1.16016ZM223.016 35.3102L231.406 11.4902L239.796 35.3102H223.016Z" fill={currentTheme.textColor}/>
+            <path d="M47.6491 5.78922C44.8891 3.02922 39.3491 1.19922 34.9191 1.19922H7.03906V55.8692H22.1991V35.2992H36.5391C39.9191 35.2992 44.6191 33.0292 46.1891 31.9592C53.4891 26.9892 53.8591 11.9992 47.6491 5.78922ZM35.6891 23.6192C34.4791 24.8292 31.8591 25.5592 30.5891 25.5592H22.1991V10.9492H32.7591C37.5291 10.9492 39.0891 20.2192 35.6891 23.6192Z" fill={currentTheme.textColor}/>
+          </g>
+          <defs>
+            <clipPath id="clip0_676_14764">
+              <rect width="361.59" height="217.7" fill="white"/>
+            </clipPath>
+          </defs>
+        </svg>
+      </div>
+
+      {/* スクリーンショット用ハッシュタグ（スクリーンショット時のみ表示） */}
       {isScreenshotMode && (
-        <>
-          {/* ポカリロゴ */}
-          <div 
-            className="fixed top-4 left-4"
-            style={{ zIndex: 10000 }}
-          >
-            <img 
-              src="/image/pocari_logo.webp" 
-              alt="POCARI Logo" 
-              className="h-12 w-auto sm:h-16"
-            />
-          </div>
-          
-          {/* ハッシュタグ */}
-          <div 
-            className="fixed bottom-4 right-4 text-white text-lg font-bold"
-            style={{ 
-              zIndex: 10000,
-              fontFamily: 'MS Sans Serif, sans-serif',
-              textShadow: '2px 2px 4px rgba(0,0,0,0.8)'
-            }}
-          >
-            #青春はバグだ。
-          </div>
-        </>
+        <div 
+          className="fixed bottom-4 right-4 text-lg font-bold"
+          style={{ 
+            zIndex: 10000,
+            fontFamily: 'MS Sans Serif, sans-serif',
+            textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
+            color: currentTheme.textColor
+          }}
+        >
+          #青春はバグだ。
+        </div>
       )}
       
+      {/* テーマ切り替えボタン（スクリーンショット時は非表示） */}
+      {!isScreenshotMode && (
+        <div className="fixed top-1/2 right-4 transform -translate-y-1/2" style={{ zIndex: 9999 }}>
+          <button
+            onClick={switchTheme}
+            className="cursor-pointer"
+            style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              backgroundColor: currentTheme.backgroundColor,
+              border: `2px solid ${currentTheme.backgroundColor === '#000000' || currentTheme.backgroundColor === '#265CAC' ? '#ffffff' : '#000000'}`,
+              transition: 'opacity 0.1s ease'
+            }}
+            onMouseDown={(e) => {
+              e.currentTarget.style.opacity = '0.8';
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.style.opacity = '1';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.opacity = '1';
+            }}
+            title={`テーマ: ${currentTheme.name}`}
+          />
+        </div>
+      )}
+
       {/* 操作説明（スクリーンショット時は非表示） */}
       {!isScreenshotMode && (
-        <div className="fixed bottom-2 right-2 text-white text-xs pointer-events-none">
+        <div 
+          className="fixed bottom-2 right-2 text-xs pointer-events-none"
+          style={{ color: currentTheme.textColor }}
+        >
           <p className="hidden sm:block">ドラッグ: 回転 | ホイール: ズーム | 右クリック + ドラッグ: パン</p>
           <p className="sm:hidden">タッチ: 回転 | ピンチ: ズーム | 2本指ドラッグ: パン</p>
         </div>

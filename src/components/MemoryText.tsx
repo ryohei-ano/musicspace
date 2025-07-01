@@ -9,15 +9,22 @@ interface Memory {
   memory_id: string;
 }
 
+export interface Theme {
+  name: string;
+  backgroundColor: string;
+  textColor: string;
+}
+
 interface MemoryTextProps {
   memory: Memory;
   position: [number, number, number];
   delay: number;
   scale?: number;
   isLatest?: boolean;
+  theme?: Theme;
 }
 
-export default function MemoryText({ memory, position, delay, scale = 1, isLatest = false }: MemoryTextProps) {
+export default function MemoryText({ memory, position, delay, scale = 1, isLatest = false, theme }: MemoryTextProps) {
   // 作成日時を指定されたフォーマットに変更
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -32,13 +39,20 @@ export default function MemoryText({ memory, position, delay, scale = 1, isLates
   // 指定されたフォーマットでテキストを作成（memory_idを"undefined"に固定）
   const displayText = `> undefined がログインしました\n> "${memory.memory}"\n\n[${formatDate(memory.created_at)}]`;
 
+  // テーマに応じた色を決定
+  const getTextColor = () => {
+    if (isLatest) return "#00ff00"; // 最新の投稿は常に緑色
+    if (theme) return theme.textColor;
+    return "#ffffff"; // デフォルトは白
+  };
+
   return (
     <TypingAnimation
       text={displayText}
       position={position}
       delay={delay}
       fontSize={0.3 * scale}
-      color={isLatest ? "#00ff00" : "#ffffff"} // 最新の投稿は緑色で目立たせる
+      color={getTextColor()}
     />
   );
 }

@@ -6,7 +6,6 @@ import { OrbitControls, Stars, Text } from '@react-three/drei';
 import { supabase } from '@/lib/supabase';
 import MemoryText, { Theme } from './MemoryText';
 import VideoPlane from './VideoPlane';
-import DraggableThemeButton from './DraggableThemeButton';
 
 interface Memory {
   id: number;
@@ -482,18 +481,6 @@ export default function ThreeMemoryScene() {
   // 現在のテーマを取得
   const currentTheme = themes[currentThemeIndex];
 
-  // テーマ切り替え関数
-  const switchTheme = () => {
-    const nextIndex = (currentThemeIndex + 1) % themes.length;
-    setCurrentThemeIndex(nextIndex);
-    // ローカルストレージに保存
-    localStorage.setItem('themeIndex', nextIndex.toString());
-    // カスタムイベントを発火してspace/page.tsxに通知
-    const event = new CustomEvent('themeChanged', {
-      detail: { themeIndex: nextIndex }
-    });
-    window.dispatchEvent(event);
-  };
 
   // ローカルストレージからテーマを復元（ログイン中のみ）
   useEffect(() => {
@@ -527,102 +514,6 @@ export default function ThreeMemoryScene() {
       window.removeEventListener('themeChanged', handleThemeChange as EventListener);
     };
   }, []);
-
-  // スクリーンショット機能
-  const takeScreenshot = useCallback(async () => {
-    setIsScreenshotMode(true);
-    
-    // オーバーレイ要素が表示されるまで少し待つ
-    setTimeout(async () => {
-      try {
-        // Three.jsのcanvasを直接取得してスクリーンショット
-        const canvas = canvasRef.current;
-        if (!canvas) {
-          throw new Error('Canvas not found');
-        }
-
-        // Three.jsのシーンをより広い範囲でレンダリング
-        // カメラの位置を一時的に調整してより広い範囲を撮影
-        const originalCanvas = canvas;
-        const gl = originalCanvas.getContext('webgl2') || originalCanvas.getContext('webgl');
-        
-        if (!gl) {
-          throw new Error('WebGL context not found');
-        }
-
-        // 新しいcanvasを作成してより高解像度でレンダリング
-        const screenshotCanvas = document.createElement('canvas');
-        const screenshotSize = 2048; // 高解像度
-        screenshotCanvas.width = screenshotSize;
-        screenshotCanvas.height = screenshotSize;
-        
-        // Three.jsのレンダラーを一時的に新しいcanvasに切り替え
-        const renderer = (window as unknown as Record<string, unknown>).__threeRenderer as {
-          getSize: (target: { x: number; y: number }) => { x: number; y: number };
-          setSize: (width: number, height: number, updateStyle: boolean) => void;
-          render: (scene: unknown, camera: unknown) => void;
-          domElement: HTMLCanvasElement;
-        };
-        if (renderer) {
-          // 元のサイズを保存
-          const originalSize = renderer.getSize({ x: 0, y: 0 });
-          
-          // レンダラーのサイズを変更
-          renderer.setSize(screenshotSize, screenshotSize, false);
-          
-          // カメラの設定を調整（縦方向により広い範囲を撮影）
-          const camera = (window as unknown as Record<string, unknown>).__threeCamera as {
-            fov: number;
-            position: { x: number; y: number; z: number; clone: () => { x: number; y: number; z: number }; copy: (pos: { x: number; y: number; z: number }) => void; set: (x: number, y: number, z: number) => void };
-            aspect: number;
-            updateProjectionMatrix: () => void;
-          };
-          if (camera) {
-            const originalFov = camera.fov;
-            const originalPosition = camera.position.clone();
-            const originalAspect = camera.aspect;
-            
-            // 3:4の縦長比率に合わせてカメラのアスペクト比を調整
-            camera.aspect = 3 / 4; // 縦長のアスペクト比
-            
-            // より広い視野角と遠い位置に設定（縦方向を重視）
-            camera.fov = 120; // さらに広角（縦方向により多くのオブジェクトを含める）
-            camera.position.set(0, 0, 80); // さらに遠くから撮影
-            camera.updateProjectionMatrix();
-            
-            // レンダリング実行
-            renderer.render((window as unknown as Record<string, unknown>).__threeScene, camera);
-            
-            // スクリーンショット用のデータURLを取得
-            const dataURL = renderer.domElement.toDataURL('image/png', 1.0);
-            
-            // カメラとレンダラーを元に戻す
-            camera.fov = originalFov;
-            camera.position.copy(originalPosition);
-            camera.aspect = originalAspect; // アスペクト比も復元
-            camera.updateProjectionMatrix();
-            renderer.setSize(originalSize.x, originalSize.y, false);
-            
-            // 通常のスクリーンショット処理を続行
-            await processScreenshot(dataURL);
-          } else {
-            // フォールバック: 通常のcanvasからスクリーンショット
-            const dataURL = originalCanvas.toDataURL('image/png', 1.0);
-            await processScreenshot(dataURL);
-          }
-        } else {
-          // フォールバック: 通常のcanvasからスクリーンショット
-          const dataURL = originalCanvas.toDataURL('image/png', 1.0);
-          await processScreenshot(dataURL);
-        }
-      } catch (error) {
-        console.error('Failed to take screenshot:', error);
-        // エラー時もUIを再表示
-        setIsScreenshotMode(false);
-        alert(`スクリーンショットの撮影に失敗しました。エラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }, 500);
-  }, [currentTheme]);
 
   // スクリーンショット処理の共通部分
   const processScreenshot = useCallback(async (dataURL: string) => {
@@ -776,6 +667,102 @@ export default function ThreeMemoryScene() {
     }
   }, [currentTheme]);
 
+  // スクリーンショット機能
+  const takeScreenshot = useCallback(async () => {
+    setIsScreenshotMode(true);
+    
+    // オーバーレイ要素が表示されるまで少し待つ
+    setTimeout(async () => {
+      try {
+        // Three.jsのcanvasを直接取得してスクリーンショット
+        const canvas = canvasRef.current;
+        if (!canvas) {
+          throw new Error('Canvas not found');
+        }
+
+        // Three.jsのシーンをより広い範囲でレンダリング
+        // カメラの位置を一時的に調整してより広い範囲を撮影
+        const originalCanvas = canvas;
+        const gl = originalCanvas.getContext('webgl2') || originalCanvas.getContext('webgl');
+        
+        if (!gl) {
+          throw new Error('WebGL context not found');
+        }
+
+        // 新しいcanvasを作成してより高解像度でレンダリング
+        const screenshotCanvas = document.createElement('canvas');
+        const screenshotSize = 2048; // 高解像度
+        screenshotCanvas.width = screenshotSize;
+        screenshotCanvas.height = screenshotSize;
+        
+        // Three.jsのレンダラーを一時的に新しいcanvasに切り替え
+        const renderer = (window as unknown as Record<string, unknown>).__threeRenderer as {
+          getSize: (target: { x: number; y: number }) => { x: number; y: number };
+          setSize: (width: number, height: number, updateStyle: boolean) => void;
+          render: (scene: unknown, camera: unknown) => void;
+          domElement: HTMLCanvasElement;
+        };
+        if (renderer) {
+          // 元のサイズを保存
+          const originalSize = renderer.getSize({ x: 0, y: 0 });
+          
+          // レンダラーのサイズを変更
+          renderer.setSize(screenshotSize, screenshotSize, false);
+          
+          // カメラの設定を調整（縦方向により広い範囲を撮影）
+          const camera = (window as unknown as Record<string, unknown>).__threeCamera as {
+            fov: number;
+            position: { x: number; y: number; z: number; clone: () => { x: number; y: number; z: number }; copy: (pos: { x: number; y: number; z: number }) => void; set: (x: number, y: number, z: number) => void };
+            aspect: number;
+            updateProjectionMatrix: () => void;
+          };
+          if (camera) {
+            const originalFov = camera.fov;
+            const originalPosition = camera.position.clone();
+            const originalAspect = camera.aspect;
+            
+            // 3:4の縦長比率に合わせてカメラのアスペクト比を調整
+            camera.aspect = 3 / 4; // 縦長のアスペクト比
+            
+            // より広い視野角と遠い位置に設定（縦方向を重視）
+            camera.fov = 120; // さらに広角（縦方向により多くのオブジェクトを含める）
+            camera.position.set(0, 0, 80); // さらに遠くから撮影
+            camera.updateProjectionMatrix();
+            
+            // レンダリング実行
+            renderer.render((window as unknown as Record<string, unknown>).__threeScene, camera);
+            
+            // スクリーンショット用のデータURLを取得
+            const dataURL = renderer.domElement.toDataURL('image/png', 1.0);
+            
+            // カメラとレンダラーを元に戻す
+            camera.fov = originalFov;
+            camera.position.copy(originalPosition);
+            camera.aspect = originalAspect; // アスペクト比も復元
+            camera.updateProjectionMatrix();
+            renderer.setSize(originalSize.x, originalSize.y, false);
+            
+            // 通常のスクリーンショット処理を続行
+            await processScreenshot(dataURL);
+          } else {
+            // フォールバック: 通常のcanvasからスクリーンショット
+            const dataURL = originalCanvas.toDataURL('image/png', 1.0);
+            await processScreenshot(dataURL);
+          }
+        } else {
+          // フォールバック: 通常のcanvasからスクリーンショット
+          const dataURL = originalCanvas.toDataURL('image/png', 1.0);
+          await processScreenshot(dataURL);
+        }
+      } catch (error) {
+        console.error('Failed to take screenshot:', error);
+        // エラー時もUIを再表示
+        setIsScreenshotMode(false);
+        alert(`スクリーンショットの撮影に失敗しました。エラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }, 500);
+  }, [processScreenshot]);
+
   // モバイル動画再生のためのユーザーインタラクションハンドラー
   useEffect(() => {
     const handleUserInteraction = () => {
@@ -828,7 +815,7 @@ export default function ThreeMemoryScene() {
     return () => {
       window.removeEventListener('takeScreenshot', handleScreenshot);
     };
-  }, [takeScreenshot]); // takeScreenshotを依存関係に追加
+  }, [takeScreenshot, processScreenshot]); // 依存関係を追加
 
   return (
     <div className="w-full h-screen" style={{ backgroundColor: currentTheme.backgroundColor }}>

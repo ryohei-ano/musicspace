@@ -10,7 +10,6 @@ import DraggableThemeButton from '@/components/DraggableThemeButton';
 export default function Page() {
   const router = useRouter();
   const [showTerminal, setShowTerminal] = useState(false);
-  const [viewportHeight, setViewportHeight] = useState(0);
   const [currentThemeIndex, setCurrentThemeIndex] = useState(0);
   const [isScreenshotMode, setIsScreenshotMode] = useState(false);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
@@ -70,8 +69,6 @@ export default function Page() {
     const updateViewportHeight = () => {
       const newHeight = window.visualViewport?.height || window.innerHeight;
       const windowHeight = window.innerHeight;
-      
-      setViewportHeight(newHeight);
       
       // キーボードが開いているかどうかを判定（高さが大幅に減った場合）
       const heightDifference = windowHeight - newHeight;
@@ -137,7 +134,7 @@ export default function Page() {
       document.body.classList.remove('no-scroll');
       document.documentElement.classList.remove('no-scroll');
     };
-  }, [router, themes.length]);
+  }, [router, themes.length, showTerminal]);
 
   const logout = () => {
     localStorage.removeItem('auth');

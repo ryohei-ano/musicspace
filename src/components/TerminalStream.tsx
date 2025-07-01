@@ -19,9 +19,10 @@ interface Memory {
 
 interface TerminalStreamProps {
   onClose?: () => void;
+  isKeyboardOpen?: boolean;
 }
 
-export default function TerminalStream({ onClose }: TerminalStreamProps) {
+export default function TerminalStream({ onClose, isKeyboardOpen = false }: TerminalStreamProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -110,11 +111,14 @@ export default function TerminalStream({ onClose }: TerminalStreamProps) {
     const prohibitedWords = [
       // 卑猥な単語
       'セックス', 'sex', 'エッチ', 'ちんこ', 'まんこ', 'おっぱい', 'ペニス', 'ヴァギナ', 'オナニー', 'masturbation',
-      'porn', 'ポルノ', 'アダルト', 'adult', 'nude', 'ヌード', 'エロ', 'ero', 'hentai', 'ヘンタイ',
+      'porn', 'ポルノ', 'アダルト', 'adult', 'nude', 'ヌード', 'エロ', 'ero', 'hentai', 'ヘンタイ', 'フェラ', 'フェラチオ',
+      'フェラチオ', 'クンニ', 'cunnilingus', 'クンニリングス', 'アナル', 'anal', 'ディープキス', 'deep kiss', 'ディープキス', 'ちんぽ', 'ちんぽこ',
+      'マンコ', 'まんこ', 'おちんちん', 'おちんぽ', 'おっぱい', 'おぱい', '乳首', 'ちくび', '乳首', 'ちくび', 'バイブ', 'バイブレーター',
+      'コンドーム', 'コンドーム', '避妊具', '避妊具', '避妊', '避妊', 'セクシャル',
       // 誹謗中傷・差別用語
-      '死ね', 'しね', 'die', 'kill', 'キル', 'ころす', '殺す', 'バカ', 'ばか', 'アホ', 'あほ', 'stupid', 'idiot',
+      '死ね', 'しね', 'die', 'kill', 'キル', 'ころす', '殺す', 'アホ', 'あほ', 'stupid', 'idiot',
       'ブス', 'ぶす', 'ugly', 'デブ', 'でぶ', 'fat', 'きもい', 'キモい', 'gross', 'disgusting',
-      'うざい', 'ウザい', 'annoying', 'クズ', 'くず', 'trash', 'ゴミ', 'ごみ', 'garbage',
+      'うざい', 'ウザい', 'annoying', 'クズ', 'くず', 
       // 差別用語
       'チョン', 'ちょん', 'ガイジ', 'がいじ', 'retard', 'nigger', 'faggot', 'bitch',
       // 暴力的な表現
@@ -137,12 +141,6 @@ export default function TerminalStream({ onClose }: TerminalStreamProps) {
 
     if (content.length > 500) {
       return { isValid: false, reason: '500文字以内で入力してください' };
-    }
-
-    // 連続する同じ文字のチェック（スパム防止）
-    const repeatedChar = /(.)\1{9,}/; // 同じ文字が10回以上連続
-    if (repeatedChar.test(content)) {
-      return { isValid: false, reason: '同じ文字の連続は10文字までです' };
     }
 
     // URLスパムチェック
@@ -207,12 +205,14 @@ export default function TerminalStream({ onClose }: TerminalStreamProps) {
 
   return (
     <div 
-      className="w-full font-mono h-48 sm:h-64 flex flex-col"
+      className={`w-full font-mono flex flex-col ${isKeyboardOpen ? 'h-auto' : 'h-48 sm:h-64'}`}
       style={{
         background: '#c0c0c0',
         border: '2px outset #c0c0c0',
         borderRadius: '0',
-        boxShadow: 'inset -1px -1px #808080, inset 1px 1px #dfdfdf, inset -2px -2px #808080, inset 2px 2px #dfdfdf'
+        boxShadow: 'inset -1px -1px #808080, inset 1px 1px #dfdfdf, inset -2px -2px #808080, inset 2px 2px #dfdfdf',
+        minHeight: isKeyboardOpen ? '200px' : undefined,
+        maxHeight: isKeyboardOpen ? '50vh' : undefined
       }}
     >
       {/* タイトルバー */}
@@ -297,13 +297,25 @@ export default function TerminalStream({ onClose }: TerminalStreamProps) {
             autoCapitalize="off"
             spellCheck="false"
             onFocus={(e) => {
-              // スクロール防止のため、フォーカス時にスクロール位置を維持
-              e.preventDefault();
-              setTimeout(() => {
-                if (e.target) {
-                  e.target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }
-              }, 100);
+              // スマホでキーボードが開いた時の処理
+              if (isKeyboardOpen && typeof window !== 'undefined' && window.innerWidth <= 640) {
+                // スクロール防止
+                e.preventDefault();
+                // ターミナルを画面下部に固定
+                setTimeout(() => {
+                  const terminalElement = e.target.closest('.terminal-fixed');
+                  if (terminalElement) {
+                    terminalElement.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                  }
+                }, 100);
+              } else {
+                // デスクトップやキーボードが開いていない場合の通常処理
+                setTimeout(() => {
+                  if (e.target) {
+                    e.target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                  }
+                }, 100);
+              }
             }}
           />
           <button

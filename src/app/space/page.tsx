@@ -5,12 +5,15 @@ import { useRouter } from 'next/navigation';
 import { LogOut, Camera, MessageSquarePlus } from 'lucide-react';
 import TerminalStream from '@/components/TerminalStream';
 import ThreeMemoryScene from '@/components/ThreeMemoryScene';
+import DraggableThemeButton from '@/components/DraggableThemeButton';
 
 export default function Page() {
   const router = useRouter();
   const [showTerminal, setShowTerminal] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [currentThemeIndex, setCurrentThemeIndex] = useState(0);
+  const [isScreenshotMode, setIsScreenshotMode] = useState(false);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
   // テーマ定義
   const themes = [
@@ -65,7 +68,32 @@ export default function Page() {
 
     // ビューポートの高さを監視（キーボード表示対応）
     const updateViewportHeight = () => {
-      setViewportHeight(window.visualViewport?.height || window.innerHeight);
+      const newHeight = window.visualViewport?.height || window.innerHeight;
+      const windowHeight = window.innerHeight;
+      
+      setViewportHeight(newHeight);
+      
+      // キーボードが開いているかどうかを判定（高さが大幅に減った場合）
+      const heightDifference = windowHeight - newHeight;
+      const isKeyboardVisible = heightDifference > 150; // 150px以上の差があればキーボードが開いていると判定
+      
+      setIsKeyboardOpen(isKeyboardVisible);
+      
+      // スマホでターミナルが開いている時のスクロール制御
+      if (typeof window !== 'undefined') {
+        const isMobile = window.innerWidth <= 640;
+        if (isMobile && showTerminal) {
+          if (isKeyboardVisible) {
+            // キーボードが開いた時：ページスクロールを完全に無効化
+            document.body.classList.add('no-scroll');
+            document.documentElement.classList.add('no-scroll');
+          } else {
+            // キーボードが閉じた時：スクロール制御を解除
+            document.body.classList.remove('no-scroll');
+            document.documentElement.classList.remove('no-scroll');
+          }
+        }
+      }
     };
 
     // 初期設定
@@ -85,7 +113,17 @@ export default function Page() {
       }
     };
 
+    // スクリーンショットイベントを監視
+    const handleTakeScreenshot = () => {
+      setIsScreenshotMode(true);
+      // 少し待ってからスクリーンショットモードを解除
+      setTimeout(() => {
+        setIsScreenshotMode(false);
+      }, 100);
+    };
+
     window.addEventListener('themeChanged', handleThemeChange as EventListener);
+    window.addEventListener('takeScreenshot', handleTakeScreenshot);
 
     return () => {
       if (window.visualViewport) {
@@ -93,6 +131,11 @@ export default function Page() {
       }
       window.removeEventListener('resize', updateViewportHeight);
       window.removeEventListener('themeChanged', handleThemeChange as EventListener);
+      window.removeEventListener('takeScreenshot', handleTakeScreenshot);
+      
+      // クリーンアップ時にスクロール制御を解除
+      document.body.classList.remove('no-scroll');
+      document.documentElement.classList.remove('no-scroll');
     };
   }, [router, themes.length]);
 
@@ -102,14 +145,44 @@ export default function Page() {
     router.push('/login');
   };
 
+  // テーマ切り替え機能
+  const switchTheme = () => {
+    const nextThemeIndex = (currentThemeIndex + 1) % themes.length;
+    setCurrentThemeIndex(nextThemeIndex);
+    localStorage.setItem('themeIndex', nextThemeIndex.toString());
+    
+    // ThreeMemorySceneにテーマ変更を通知
+    const event = new CustomEvent('themeChanged', {
+      detail: { themeIndex: nextThemeIndex }
+    });
+    window.dispatchEvent(event);
+  };
+
+  // ターミナル表示/非表示の制御
+  const toggleTerminal = () => {
+    const newShowTerminal = !showTerminal;
+    setShowTerminal(newShowTerminal);
+    
+    // スマホでターミナルを閉じた時はスクロール制御を解除
+    if (typeof window !== 'undefined') {
+      const isMobile = window.innerWidth <= 640;
+      if (isMobile && !newShowTerminal) {
+        document.body.classList.remove('no-scroll');
+        document.documentElement.classList.remove('no-scroll');
+      }
+    }
+  };
+
   // 認証済みユーザーのみ表示
   return (
     <div 
-      className="relative w-full h-screen overflow-hidden"
+      className={`relative w-full h-screen overflow-hidden no-select no-tap-highlight ${showTerminal && typeof window !== 'undefined' && window.innerWidth <= 640 ? 'no-scroll' : ''}`}
       style={{ backgroundColor: currentTheme.backgroundColor }}
     >
       {/* 3Dメモリシーン */}
-      <ThreeMemoryScene />
+      <div className={isKeyboardOpen && showTerminal ? 'canvas-no-interaction' : ''}>
+        <ThreeMemoryScene />
+      </div>
       
       {/* ロゴ（左上） */}
       <div 
@@ -200,7 +273,7 @@ export default function Page() {
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              setShowTerminal(!showTerminal);
+              toggleTerminal();
             }}
             className="flex items-center justify-center min-h-[44px] sm:min-h-auto cursor-pointer hover:bg-gray-300 transition-colors duration-150"
             style={{ 
@@ -268,19 +341,39 @@ export default function Page() {
           </button>
       </div>
       
+      {/* ドラッグ可能なテーマ切り替えボタン */}
+      <DraggableThemeButton
+        currentTheme={currentTheme}
+        onThemeSwitch={switchTheme}
+        isScreenshotMode={isScreenshotMode}
+      />
+
       {/* ターミナル（キーボード対応） */}
       {showTerminal && (
         <div 
-          className="fixed left-2 right-2 sm:absolute sm:left-4 sm:right-4 sm:bottom-4 max-h-48 sm:max-h-64 z-10"
+          className={`fixed left-0 right-0 sm:left-4 sm:right-4 sm:bottom-4 z-50 ${
+            isKeyboardOpen ? 'terminal-fixed' : ''
+          }`}
           style={{
-            bottom: viewportHeight > 0 && viewportHeight < window.innerHeight 
-              ? `${window.innerHeight - viewportHeight + 16}px` 
+            bottom: typeof window !== 'undefined' && window.innerWidth <= 640 
+              ? (isKeyboardOpen ? '0px' : '16px')
               : '16px',
+            left: typeof window !== 'undefined' && window.innerWidth <= 640 
+              ? (isKeyboardOpen ? '0px' : '8px')
+              : undefined,
+            right: typeof window !== 'undefined' && window.innerWidth <= 640 
+              ? (isKeyboardOpen ? '0px' : '8px')
+              : undefined,
+            maxHeight: isKeyboardOpen ? '50vh' : '48vw',
             transform: 'translateZ(0)', // ハードウェアアクセラレーションを有効化
-            willChange: 'transform' // パフォーマンス最適化
+            willChange: 'transform', // パフォーマンス最適化
+            transition: 'all 0.3s ease-in-out'
           }}
         >
-          <TerminalStream onClose={() => setShowTerminal(false)} />
+          <TerminalStream 
+            onClose={toggleTerminal}
+            isKeyboardOpen={isKeyboardOpen}
+          />
         </div>
       )}
     </div>

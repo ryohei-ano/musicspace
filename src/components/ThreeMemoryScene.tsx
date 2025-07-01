@@ -6,6 +6,7 @@ import { OrbitControls, Stars, Text } from '@react-three/drei';
 import { supabase } from '@/lib/supabase';
 import MemoryText, { Theme } from './MemoryText';
 import VideoPlane from './VideoPlane';
+import DraggableThemeButton from './DraggableThemeButton';
 
 interface Memory {
   id: number;
@@ -511,6 +512,20 @@ export default function ThreeMemoryScene() {
       setCurrentThemeIndex(0);
       localStorage.removeItem('themeIndex');
     }
+
+    // テーマ変更イベントを監視（space/page.tsxからの変更を受信）
+    const handleThemeChange = (e: CustomEvent) => {
+      const newThemeIndex = e.detail.themeIndex;
+      if (newThemeIndex >= 0 && newThemeIndex < themes.length) {
+        setCurrentThemeIndex(newThemeIndex);
+      }
+    };
+
+    window.addEventListener('themeChanged', handleThemeChange as EventListener);
+
+    return () => {
+      window.removeEventListener('themeChanged', handleThemeChange as EventListener);
+    };
   }, []);
 
   // スクリーンショット機能
@@ -852,33 +867,6 @@ export default function ThreeMemoryScene() {
         </div>
       )}
       
-      {/* テーマ切り替えボタン（スクリーンショット時は非表示） */}
-      {!isScreenshotMode && (
-        <div className="fixed top-1/2 right-4 transform -translate-y-1/2" style={{ zIndex: 9999 }}>
-          <button
-            onClick={switchTheme}
-            className="cursor-pointer"
-            style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              backgroundColor: currentTheme.backgroundColor,
-              border: `2px solid ${currentTheme.backgroundColor === '#000000' || currentTheme.backgroundColor === '#265CAC' ? '#ffffff' : '#000000'}`,
-              transition: 'opacity 0.1s ease'
-            }}
-            onMouseDown={(e) => {
-              e.currentTarget.style.opacity = '0.8';
-            }}
-            onMouseUp={(e) => {
-              e.currentTarget.style.opacity = '1';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.opacity = '1';
-            }}
-            title={`テーマ: ${currentTheme.name}`}
-          />
-        </div>
-      )}
 
       {/* 操作説明（スクリーンショット時は非表示） */}
       {!isScreenshotMode && (

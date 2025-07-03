@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
-const passwords = ['L5zaYQ', 'w7TDkL', 'U2zhDY'];
+const passwords = ['L5zaYQ', 'w7TDkL', 'U2zhDY', 'pocari'];
 
 export default function PasswordGate({ 
   children, 

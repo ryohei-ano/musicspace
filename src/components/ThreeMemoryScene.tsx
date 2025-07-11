@@ -3,9 +3,16 @@
 import { useState, useEffect, Suspense, useRef, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stars, Text } from '@react-three/drei';
+import * as THREE from 'three';
 import { supabase } from '@/lib/supabase';
 import MemoryText, { Theme } from './MemoryText';
 import VideoPlane from './VideoPlane';
+import MusicPanel from './MusicPanel';
+import SpotifyWebPlayer from './SpotifyWebPlayer';
+import { SpotifyTrack } from '@/types/music';
+import TypingAnimation from './TypingAnimation';
+import DataVisualization from './DataVisualization';
+import { useFrame } from '@react-three/fiber';
 
 interface Memory {
   id: number;
@@ -193,8 +200,172 @@ const themes: Theme[] = [
   }
 ];
 
+// 歌詞用の3D位置生成関数（random memoriesと同じ要領で配置）
+const generateLyricsPosition = (index: number): [number, number, number] => {
+  // random memoriesと全く同じアルゴリズムを使用
+  // 複数の層に分けて配置
+  const itemsPerLayer = 10; // 各層に10個
+  const currentLayer = Math.floor(index / itemsPerLayer);
+  const indexInLayer = index % itemsPerLayer;
+  
+  // 各層の基本半径（カメラから見えやすいように調整）
+  const baseRadius = 8 + (currentLayer * 6); // 8, 14, 20, 26, 32...
+  
+  // フィボナッチ螺旋を使用して均等分布
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5)); // 黄金角
+  const theta = indexInLayer * goldenAngle;
+  const phi = Math.acos(1 - 2 * (indexInLayer + 0.5) / itemsPerLayer);
+  
+  // 球面座標から直交座標への変換
+  const x = baseRadius * Math.sin(phi) * Math.cos(theta);
+  const y = baseRadius * Math.cos(phi);
+  const z = baseRadius * Math.sin(phi) * Math.sin(theta);
+  
+  // Y座標を調整（カメラの初期位置[0,0,30]から見て被らないように）
+  const adjustedY = y * 0.3 + (Math.random() - 0.5) * 4; // Y座標をさらに圧縮
+  
+  // Z座標を調整（カメラの前方により多く配置）
+  const adjustedZ = z * 0.7 + (Math.random() - 0.5) * 8; // Z軸方向の範囲を狭める
+  
+  // 追加のランダム性（重複を避けるため）
+  const randomOffset = 1.0;
+  const offsetX = (Math.random() - 0.5) * randomOffset;
+  const offsetY = (Math.random() - 0.5) * randomOffset;
+  const offsetZ = (Math.random() - 0.5) * randomOffset;
+  
+  return [x + offsetX, adjustedY + offsetY, adjustedZ + offsetZ];
+};
+
+// 3D空間での歌詞表示コンポーネント（複数テキスト対応）
+function LyricsIn3D({ 
+  lyrics, 
+  currentSegmentIndex, 
+  segments,
+  beatIntensity,
+  theme
+}: { 
+  lyrics: {
+    id: number;
+    title: string;
+    artist: string;
+    lyrics: string[];
+    url: string;
+  }; 
+  currentSegmentIndex: number;
+  segments: string[];
+  beatIntensity: number;
+  theme: Theme;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  
+  // ビートに合わせてスケールを変更
+  useFrame(() => {
+    if (groupRef.current) {
+      const scale = 1 + (beatIntensity / 100) * 0.2;
+      groupRef.current.scale.setScalar(scale);
+    }
+  });
+
+  // 表示する文節の範囲（現在の前後5個ずつ）
+  const displayRange = 5;
+  const startIndex = Math.max(0, currentSegmentIndex - displayRange);
+  const endIndex = Math.min(segments.length, currentSegmentIndex + displayRange + 1);
+  const visibleSegments = segments.slice(startIndex, endIndex);
+
+  // テーマに基づいた色の計算
+  const getCurrentColor = () => theme.textColor;
+  const getPastColor = () => {
+    // 過去の歌詞は少し薄く
+    if (theme.textColor === '#ffffff') return '#cccccc';
+    if (theme.textColor === '#000000') return '#666666';
+    return theme.textColor;
+  };
+  const getFutureColor = () => {
+    // 未来の歌詞は中間の明度
+    if (theme.textColor === '#ffffff') return '#aaaaaa';
+    if (theme.textColor === '#000000') return '#888888';
+    return theme.textColor;
+  };
+  const getInfoColor = () => {
+    // 楽曲情報は控えめに
+    if (theme.textColor === '#ffffff') return '#cccccc';
+    if (theme.textColor === '#000000') return '#666666';
+    return theme.textColor;
+  };
+
+  return (
+    <group ref={groupRef}>
+      {/* 各文節を3D空間に配置 */}
+      {visibleSegments.map((segment, index) => {
+        const actualIndex = startIndex + index;
+        const isCurrent = actualIndex === currentSegmentIndex;
+        const isPast = actualIndex < currentSegmentIndex;
+        const isFuture = actualIndex > currentSegmentIndex;
+        
+        const position = generateLyricsPosition(actualIndex);
+        
+        // 現在の文節はタイピングアニメーション、それ以外は通常テキスト
+        if (isCurrent) {
+          return (
+            <TypingAnimation
+              key={`current-${actualIndex}`}
+              text={segment}
+              position={position}
+              fontSize={1.5}
+              color={getCurrentColor()}
+              delay={0}
+            />
+          );
+        } else {
+          return (
+            <Text
+              key={`segment-${actualIndex}`}
+              position={position}
+              fontSize={isPast ? 0.8 : 1.0}
+              color={isPast ? getPastColor() : isFuture ? getFutureColor() : getCurrentColor()}
+              anchorX="center"
+              anchorY="middle"
+            >
+              {segment}
+            </Text>
+          );
+        }
+      })}
+      
+      {/* 楽曲情報（カメラに近い位置） */}
+      <Text
+        position={[0, -3, 12]}
+        fontSize={0.6}
+        color={getInfoColor()}
+        anchorX="center"
+        anchorY="middle"
+      >
+        {lyrics.title} - {lyrics.artist}
+      </Text>
+    </group>
+  );
+}
+
 // シーンの内容
-function SceneContent({ currentTheme }: { currentTheme: Theme }) {
+function SceneContent({ 
+  currentTheme, 
+  currentLyrics, 
+  currentLyricsIndex, 
+  beatIntensity,
+  lyricsSegments
+}: { 
+  currentTheme: Theme;
+  currentLyrics: {
+    id: number;
+    title: string;
+    artist: string;
+    lyrics: string[];
+    url: string;
+  } | null;
+  currentLyricsIndex: number;
+  beatIntensity: number;
+  lyricsSegments: string[];
+}) {
   const [allMemories, setAllMemories] = useState<Memory[]>([]);
   const [displayedMemories, setDisplayedMemories] = useState<Memory[]>([]);
   const [recentMemories, setRecentMemories] = useState<Memory[]>([]);
@@ -422,32 +593,37 @@ function SceneContent({ currentTheme }: { currentTheme: Theme }) {
         />
       )}
       
-      {/* 最新のメモリをカメラに一番近い位置に表示 */}
-      {recentMemories.map((memory, index) => (
-        <MemoryText
-          key={`recent-${memory.id}-${refreshKey}`}
-          memory={memory}
-          position={generateLatestPosition(index, recentMemories.length)}
-          delay={0}
-          scale={2.0} // より大きく表示
-          isLatest={true} // 最新の投稿として緑色で表示
-          theme={currentTheme}
-        />
-      ))}
+      {/* 歌詞表示時以外のみメモリを表示 */}
+      {!(currentLyrics && lyricsSegments.length > 0) && (
+        <>
+          {/* 最新のメモリをカメラに一番近い位置に表示 */}
+          {recentMemories.map((memory, index) => (
+            <MemoryText
+              key={`recent-${memory.id}-${refreshKey}`}
+              memory={memory}
+              position={generateLatestPosition(index, recentMemories.length)}
+              delay={0}
+              scale={2.0} // より大きく表示
+              isLatest={true} // 最新の投稿として緑色で表示
+              theme={currentTheme}
+            />
+          ))}
+          
+          {/* メモリテキストを3D空間に配置 */}
+          {displayedMemories.map((memory: Memory, index: number) => (
+            <MemoryText
+              key={`${memory.id}-${index}-${refreshKey}`} // idとindexを使って識別
+              memory={memory}
+              position={generateRandomPosition(index)}
+              delay={index * 50} // 50msずつずらしてアニメーション開始（高速化）
+              theme={currentTheme}
+            />
+          ))}
+        </>
+      )}
       
-      {/* メモリテキストを3D空間に配置 */}
-      {displayedMemories.map((memory: Memory, index: number) => (
-        <MemoryText
-          key={`${memory.id}-${index}-${refreshKey}`} // idとindexを使って識別
-          memory={memory}
-          position={generateRandomPosition(index)}
-          delay={index * 50} // 50msずつずらしてアニメーション開始（高速化）
-          theme={currentTheme}
-        />
-      ))}
-      
-      {/* 動画を3D空間にランダム配置（12個全て表示） */}
-      {videoFiles.map((videoSrc, index) => (
+      {/* 動画を3D空間にランダム配置（一旦非表示） */}
+      {false && videoFiles.map((videoSrc, index) => (
         <VideoPlane
           key={`video-${index}`}
           videoSrc={videoSrc}
@@ -456,6 +632,23 @@ function SceneContent({ currentTheme }: { currentTheme: Theme }) {
           scale={0.8} // サイズを小さくしてパフォーマンス向上
         />
       ))}
+      
+      {/* データ可視化（背景アニメーション） */}
+      <DataVisualization 
+        theme={currentTheme} 
+        beatIntensity={beatIntensity} 
+      />
+      
+      {/* 3D空間での歌詞表示 */}
+      {currentLyrics && lyricsSegments.length > 0 && (
+        <LyricsIn3D
+          lyrics={currentLyrics}
+          currentSegmentIndex={currentLyricsIndex}
+          segments={lyricsSegments}
+          beatIntensity={beatIntensity}
+          theme={currentTheme}
+        />
+      )}
       
       {/* カメラコントロール */}
       <OrbitControls
@@ -474,33 +667,213 @@ function SceneContent({ currentTheme }: { currentTheme: Theme }) {
 
 export default function ThreeMemoryScene() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isScreenshotMode, setIsScreenshotMode] = useState(false);
   const [userInteracted, setUserInteracted] = useState(false);
-  const [currentThemeIndex, setCurrentThemeIndex] = useState(0);
+  const [currentThemeIndex, setCurrentThemeIndex] = useState(2);
+  
+  // 音楽機能の状態
+  const [currentTrack, setCurrentTrack] = useState<SpotifyTrack | null>(null);
+  const [currentLyrics, setCurrentLyrics] = useState<{
+    id: number;
+    title: string;
+    artist: string;
+    lyrics: string[];
+    url: string;
+  } | null>(null);
+  const [beatIntensity] = useState(0);
 
   // 現在のテーマを取得
   const currentTheme = themes[currentThemeIndex];
 
-
-  // ローカルストレージからテーマを復元（ログイン中のみ）
-  useEffect(() => {
-    const auth = localStorage.getItem('auth');
-    if (auth === '1') {
-      // ログイン中の場合のみテーマを復元
-      const savedThemeIndex = localStorage.getItem('themeIndex');
-      if (savedThemeIndex) {
-        const index = parseInt(savedThemeIndex, 10);
-        if (index >= 0 && index < themes.length) {
-          setCurrentThemeIndex(index);
-        }
+  // 楽曲選択ハンドラー
+  const handleTrackSelected = useCallback(async (track: SpotifyTrack) => {
+    console.log('🎵 Track selected:', track);
+    setCurrentTrack(track);
+    
+    // 歌詞を取得
+    const query = `${track.name} ${track.artist}`;
+    try {
+      console.log('🔍 Fetching lyrics for:', query);
+      const response = await fetch(`/api/lyrics?q=${encodeURIComponent(query)}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch lyrics');
       }
-    } else {
-      // 未ログインの場合はデフォルトテーマ（青）にリセット
-      setCurrentThemeIndex(0);
-      localStorage.removeItem('themeIndex');
+      const lyricsData = await response.json();
+      console.log('📝 Lyrics data received:', lyricsData);
+      console.log('📝 Lyrics array length:', lyricsData.lyrics?.length);
+      console.log('📝 First few lyrics:', lyricsData.lyrics?.slice(0, 3));
+      
+      setCurrentLyrics(lyricsData);
+      setCurrentLyricsIndex(0); // 歌詞インデックスをリセット
+      setIsLyricsPlaying(true); // 歌詞表示を開始
+    } catch (error) {
+      console.error('❌ Failed to fetch lyrics:', error);
+      // 歌詞取得に失敗してもプレーヤーは表示
     }
+  }, []);
 
-    // テーマ変更イベントを監視（space/page.tsxからの変更を受信）
+  // 現在の歌詞行インデックス
+  const [currentLyricsIndex, setCurrentLyricsIndex] = useState(0);
+  const [isLyricsPlaying, setIsLyricsPlaying] = useState(false);
+  const [lyricsSegments, setLyricsSegments] = useState<string[]>([]);
+
+  // 3D空間表示用の歌詞フィルタリング関数（緩い条件）
+  const filterLyricsFor3D = (lyrics: string[]): string[] => {
+    return lyrics
+      .map(line => {
+        let cleanLine = line.trim();
+        
+        // 基本的なセクション情報のみ除去
+        cleanLine = cleanLine
+          .replace(/\[verse\s*\d*\]/gi, '')
+          .replace(/\[chorus\]/gi, '')
+          .replace(/\[bridge\]/gi, '')
+          .replace(/\[outro\]/gi, '')
+          .replace(/\[intro\]/gi, '')
+          .trim();
+        
+        return cleanLine;
+      })
+      .filter(line => {
+        const trimmed = line.trim();
+        
+        // 最小限のチェックのみ（空行と異常に長い行のみ除外）
+        if (trimmed.length < 1 || trimmed.length > 2000) return false;
+        
+        // 最小限の除外パターン（明らかなメタデータのみ）
+        const excludePatterns = [
+          /^\d+\s*contributors?/i,
+          /^more on genius/i,
+          /^embed$/i,
+          /^genius$/i,
+        ];
+        
+        // 明らかなメタデータのみを除外
+        for (const pattern of excludePatterns) {
+          if (pattern.test(trimmed)) {
+            return false;
+          }
+        }
+        
+        return true;
+      })
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+  };
+
+  // 歌詞が変更されたときにセグメントを生成
+  useEffect(() => {
+    if (currentLyrics) {
+      const generateLyricsSegments = async () => {
+        console.log('🎼 3D歌詞分割開始:', currentLyrics.title);
+        console.log('🎼 元の歌詞データ:', currentLyrics.lyrics);
+        
+        // まず3D表示用にフィルタリング
+        const filteredLyrics = filterLyricsFor3D(currentLyrics.lyrics);
+        console.log('🎼 3D歌詞フィルタリング結果:', filteredLyrics.length, '行');
+        console.log('🎼 フィルタリング後の歌詞:', filteredLyrics);
+        
+        // 適切な長さの文節に分割（kuromoji.jsは使わない）
+        const segments: string[] = [];
+        
+        filteredLyrics.forEach(line => {
+          if (!line.trim()) return;
+          
+          // 日本語の場合：適度な長さで分割
+          if (/[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FAF]/.test(line)) {
+            // 句読点や改行で一度分割
+            const phrases = line.split(/[、。！？\n]/).filter(p => p.trim().length > 0);
+            
+            phrases.forEach(phrase => {
+              const trimmed = phrase.trim();
+              if (trimmed.length === 0) return;
+              
+              // 長すぎる場合は適度な長さで分割
+              if (trimmed.length > 15) {
+                // 助詞で分割を試行
+                const parts = trimmed.split(/([はがをにでとへのもか])/);
+                let currentSegment = '';
+                
+                for (const part of parts) {
+                  currentSegment += part;
+                  
+                  // 適度な長さ（8-15文字）になったら区切り
+                  if (currentSegment.length >= 8 && currentSegment.length <= 15) {
+                    segments.push(currentSegment.trim());
+                    currentSegment = '';
+                  } else if (currentSegment.length > 15) {
+                    // 長すぎる場合は強制的に区切り
+                    segments.push(currentSegment.trim());
+                    currentSegment = '';
+                  }
+                }
+                
+                if (currentSegment.trim()) {
+                  segments.push(currentSegment.trim());
+                }
+              } else {
+                // 適度な長さの場合はそのまま
+                segments.push(trimmed);
+              }
+            });
+          } else {
+            // 英語の場合：単語数で分割
+            const words = line.split(/\s+/).filter(w => w.trim().length > 0);
+            let currentSegment = '';
+            
+            for (const word of words) {
+              const testSegment = currentSegment ? `${currentSegment} ${word}` : word;
+              
+              // 3-6単語程度で区切り
+              if (testSegment.split(/\s+/).length <= 6) {
+                currentSegment = testSegment;
+              } else {
+                if (currentSegment) {
+                  segments.push(currentSegment.trim());
+                }
+                currentSegment = word;
+              }
+            }
+            
+            if (currentSegment.trim()) {
+              segments.push(currentSegment.trim());
+            }
+          }
+        });
+        
+        console.log('🎼 3D歌詞 適度な分割結果:', segments.length, '個のセグメント');
+        console.log('🎼 分割されたセグメント:', segments);
+        setLyricsSegments(segments.filter(seg => seg.length > 0));
+      };
+      
+      generateLyricsSegments();
+    }
+  }, [currentLyrics]);
+
+  // 歌詞の自動進行
+  useEffect(() => {
+    if (!isLyricsPlaying || lyricsSegments.length === 0) return;
+
+    const interval = setInterval(() => {
+      setCurrentLyricsIndex(prev => {
+        const nextIndex = prev + 1;
+        if (nextIndex >= lyricsSegments.length) {
+          // 歌詞の最後に到達したら停止
+          setIsLyricsPlaying(false);
+          return prev;
+        }
+        return nextIndex;
+      });
+    }, 4000); // 4秒ごとに歌詞を進める（一文単位なので少し長めに）
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [isLyricsPlaying, lyricsSegments.length]);
+
+
+
+  // テーマ変更イベントを監視
+  useEffect(() => {
     const handleThemeChange = (e: CustomEvent) => {
       const newThemeIndex = e.detail.themeIndex;
       if (newThemeIndex >= 0 && newThemeIndex < themes.length) {
@@ -514,254 +887,6 @@ export default function ThreeMemoryScene() {
       window.removeEventListener('themeChanged', handleThemeChange as EventListener);
     };
   }, []);
-
-  // スクリーンショット処理の共通部分
-  const processScreenshot = useCallback(async (dataURL: string) => {
-    try {
-      // 新しいcanvasを作成してオーバーレイ要素を合成
-      const compositeCanvas = document.createElement('canvas');
-      const ctx = compositeCanvas.getContext('2d');
-      
-      if (!ctx) {
-        throw new Error('Canvas context not available');
-      }
-
-      // インスタストーリーズのような縦長の3:4（縦長）でcanvasサイズを設定（2倍解像度）
-      const aspectRatio = 3 / 4; // 縦長の比率
-      const baseHeight = 2400; // 高解像度の基準高さ（2倍）
-      compositeCanvas.width = baseHeight * aspectRatio; // 1800px (3:4比率)
-      compositeCanvas.height = baseHeight;
-
-      // 背景色を現在のテーマに設定
-      ctx.fillStyle = currentTheme.backgroundColor;
-      ctx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
-
-      // Three.jsの画像を描画
-      const img = new Image();
-      img.onload = () => {
-        // 元の画像のアスペクト比を保持しながら縦長canvasに描画
-        const imgAspectRatio = img.width / img.height;
-        const canvasAspectRatio = compositeCanvas.width / compositeCanvas.height;
-        
-        let drawWidth, drawHeight, drawX, drawY;
-        
-        if (imgAspectRatio > canvasAspectRatio) {
-          // 画像が横長の場合、幅を基準にして高さを調整
-          drawWidth = compositeCanvas.width;
-          drawHeight = compositeCanvas.width / imgAspectRatio;
-          drawX = 0;
-          drawY = (compositeCanvas.height - drawHeight) / 2;
-        } else {
-          // 画像が縦長の場合、高さを基準にして幅を調整
-          drawHeight = compositeCanvas.height;
-          drawWidth = compositeCanvas.height * imgAspectRatio;
-          drawX = (compositeCanvas.width - drawWidth) / 2;
-          drawY = 0;
-        }
-        
-        // アスペクト比を保持して描画
-        ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
-
-        // SVGロゴを描画（テーマ色に対応）
-        const svgString = `
-          <svg width="128" height="77" viewBox="0 0 362 218" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <g clip-path="url(#clip0_676_14764)">
-              <path d="M361.588 147.35V212.3C353.558 213.23 345.548 214.72 337.498 215.54C282.898 221.12 232.098 215.89 179.978 199.32C122.008 180.89 74.1978 150.64 11.1278 150.62C9.97782 150.62 -0.00217999 150.88 0.00782001 150.32C20.2078 145.34 40.6478 140.18 61.4478 138.14C126.938 131.73 183.878 157.44 247.628 159.81C285.998 161.24 324.328 155.53 361.588 147.34V147.35Z" fill="${currentTheme.textColor}"/>
-              <path d="M79.5819 63.4519L89.5919 103.512L100.392 63.4219L117.412 63.5119L127.742 103.512L136.952 63.4519H152.112L136.362 118.072L120.962 118.162L108.532 75.9019L96.8419 118.072L80.7319 118.052L64.4219 63.4519H79.5819Z" fill="${currentTheme.textColor}"/>
-              <path d="M49.8028 78.6099H35.1928C34.9028 78.6099 35.4528 75.0899 33.3128 73.1799C26.2428 66.8799 14.4128 77.7599 25.2428 82.8799C33.2828 86.6799 47.8828 86.3499 51.0628 96.5799C54.2028 106.69 48.5128 115.25 38.7228 118.14C24.9028 122.23 4.87282 118.6 4.88282 100.81H19.4928C18.2328 110.14 32.7528 113.76 36.1228 105.81C40.2928 95.9899 21.2028 94.9999 15.3228 92.2499C4.21282 87.0599 3.07282 73.5399 13.0228 66.4699C23.6328 58.9399 51.0528 60.9699 49.7928 78.6199L49.8028 78.6099Z" fill="${currentTheme.textColor}"/>
-              <path d="M205.7 63.4514V72.6514H183.24C183.18 72.6514 182.43 73.4014 182.43 73.4614V84.5614H204.08V94.3014H182.43V107.831H206.79V118.111H167.82V63.4414H205.71L205.7 63.4514Z" fill="${currentTheme.textColor}"/>
-              <path d="M189.998 17.4415H175.658C175.158 17.4415 173.728 11.6715 168.928 10.6515C153.398 7.33152 152.098 32.8915 157.518 42.0915C162.328 50.2615 174.608 48.0815 175.938 38.5615H190.548C190.688 57.8515 163.318 61.1615 150.318 53.0815C136.198 44.3115 136.978 15.9415 149.408 5.81152C161.718 -4.22848 188.848 -1.77847 190.008 17.4515L189.998 17.4415Z" fill="${currentTheme.textColor}"/>
-              <path d="M332.362 63.4492V73.7392H315.042V118.119H300.422V73.7392H283.102V63.4492H332.362Z" fill="${currentTheme.textColor}"/>
-              <path d="M361.59 1.19922H346.43V55.8692H361.59V1.19922Z" fill="${currentTheme.textColor}"/>
-              <path d="M312.867 28.7986C312.457 27.2086 314.457 27.7186 315.697 27.0386C321.637 23.8186 322.707 18.1286 322.057 11.7586C321.297 4.3086 314.327 1.8086 307.717 1.19859C297.657 0.268595 286.257 1.88859 276.047 1.19859V55.8686H291.207V34.7586H302.307C307.827 34.7586 305.227 52.8586 309.347 55.8686H324.237C318.587 47.2986 324.567 32.8886 312.867 28.7986ZM302.317 24.4786H291.217V10.9486H302.857C304.437 10.9486 306.247 12.5686 306.927 13.3786C309.967 16.9586 307.727 24.4486 302.317 24.4886V24.4786Z" fill="${currentTheme.textColor}"/>
-              <path d="M91.9062 0.279588C74.0062 2.05959 66.2762 15.9196 67.6662 32.8596C70.2362 64.0996 114.616 64.7696 120.556 37.0496C125.046 16.0996 115.086 -2.02041 91.9062 0.279588ZM90.5462 46.2496C78.4862 41.6496 79.4462 12.5296 91.8662 9.98959C113.056 5.65959 111.046 54.0796 90.5462 46.2496Z" fill="${currentTheme.textColor}"/>
-              <path d="M258.488 63.9808C258.068 63.4408 257.478 63.5008 256.878 63.4308C254.078 63.1008 246.068 63.0808 243.288 63.4308C242.628 63.5108 242.198 63.3908 241.688 64.0008C241.288 64.4808 239.508 69.3008 238.988 70.5108C232.308 86.0308 226.918 102.141 219.998 117.581C219.518 117.911 220.508 118.681 220.578 118.681H233.028C234.798 117.231 236.528 107.871 237.978 107.391L261.118 107.281C261.728 107.451 263.908 117.661 265.508 118.681H280.398L258.488 63.9908V63.9808ZM241.418 98.0908L249.798 74.8108L257.648 98.0908H241.408H241.418Z" fill="${currentTheme.textColor}"/>
-              <path d="M239.546 1.16016L223.646 1.29016L201.906 55.8702H215.166L219.296 45.1202C222.266 45.4002 242.426 44.3802 243.096 45.3702L247.096 55.8802H262.526L239.546 1.16016ZM223.016 35.3102L231.406 11.4902L239.796 35.3102H223.016Z" fill="${currentTheme.textColor}"/>
-              <path d="M47.6491 5.78922C44.8891 3.02922 39.3491 1.19922 34.9191 1.19922H7.03906V55.8692H22.1991V35.2992H36.5391C39.9191 35.2992 44.6191 33.0292 46.1891 31.9592C53.4891 26.9892 53.8591 11.9992 47.6491 5.78922ZM35.6891 23.6192C34.4791 24.8292 31.8591 25.5592 30.5891 25.5592H22.1991V10.9492H32.7591C37.5291 10.9492 39.0891 20.2192 35.6891 23.6192Z" fill="${currentTheme.textColor}"/>
-            </g>
-            <defs>
-              <clipPath id="clip0_676_14764">
-                <rect width="361.59" height="217.7" fill="white"/>
-              </clipPath>
-            </defs>
-          </svg>
-        `;
-        
-        const svgBlob = new Blob([svgString], { type: 'image/svg+xml' });
-        const svgUrl = URL.createObjectURL(svgBlob);
-        
-        const logo = new Image();
-        logo.onload = () => {
-          ctx.drawImage(logo, 32, 32, 128, 77); // SVGのアスペクト比に合わせて調整
-          URL.revokeObjectURL(svgUrl); // メモリリークを防ぐ
-
-          // ハッシュタグを描画（高解像度対応、テーマ色に対応）
-          ctx.fillStyle = currentTheme.textColor;
-          ctx.font = 'bold 36px Arial, sans-serif'; // フォントサイズ2倍
-          ctx.textAlign = 'right';
-          ctx.textBaseline = 'bottom';
-          ctx.fillText('#青春はバグだ。', compositeCanvas.width - 32, compositeCanvas.height - 32); // マージンも2倍
-
-          // 最終的なデータURLを取得
-          const finalDataURL = compositeCanvas.toDataURL('image/png', 1.0);
-          
-          // UIを先に再表示
-          setIsScreenshotMode(false);
-          
-          // 保存確認アラート
-          const shouldSave = window.confirm('スクリーンショットを保存しますか？');
-          
-          if (shouldSave) {
-            // ダウンロード用のリンクを作成
-            const link = document.createElement('a');
-            link.download = `pocari_screenshot_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
-            link.href = finalDataURL;
-            
-            // ダウンロードを実行
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            console.log('Screenshot saved successfully');
-          } else {
-            console.log('Screenshot cancelled by user');
-          }
-        };
-        logo.onerror = () => {
-          console.warn('SVG Logo failed to load, proceeding without logo');
-          URL.revokeObjectURL(svgUrl);
-          
-          // ハッシュタグのみ描画（高解像度対応、テーマ色に対応）
-          ctx.fillStyle = currentTheme.textColor;
-          ctx.font = 'bold 36px Arial, sans-serif'; // フォントサイズ2倍
-          ctx.textAlign = 'right';
-          ctx.textBaseline = 'bottom';
-          ctx.fillText('#青春はバグだ。', compositeCanvas.width - 32, compositeCanvas.height - 32); // マージンも2倍
-
-          const finalDataURL = compositeCanvas.toDataURL('image/png', 1.0);
-          setIsScreenshotMode(false);
-          
-          const shouldSave = window.confirm('スクリーンショットを保存しますか？');
-          if (shouldSave) {
-            const link = document.createElement('a');
-            link.download = `pocari_screenshot_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
-            link.href = finalDataURL;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            console.log('Screenshot saved successfully (without logo)');
-          }
-        };
-        logo.src = svgUrl;
-      };
-      img.onerror = () => {
-        throw new Error('Failed to load Three.js canvas image');
-      };
-      img.src = dataURL;
-      
-    } catch (error) {
-      console.error('Failed to take screenshot:', error);
-      // エラー時もUIを再表示
-      setIsScreenshotMode(false);
-      alert(`スクリーンショットの撮影に失敗しました。エラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  }, [currentTheme]);
-
-  // スクリーンショット機能
-  const takeScreenshot = useCallback(async () => {
-    setIsScreenshotMode(true);
-    
-    // オーバーレイ要素が表示されるまで少し待つ
-    setTimeout(async () => {
-      try {
-        // Three.jsのcanvasを直接取得してスクリーンショット
-        const canvas = canvasRef.current;
-        if (!canvas) {
-          throw new Error('Canvas not found');
-        }
-
-        // Three.jsのシーンをより広い範囲でレンダリング
-        // カメラの位置を一時的に調整してより広い範囲を撮影
-        const originalCanvas = canvas;
-        const gl = originalCanvas.getContext('webgl2') || originalCanvas.getContext('webgl');
-        
-        if (!gl) {
-          throw new Error('WebGL context not found');
-        }
-
-        // 新しいcanvasを作成してより高解像度でレンダリング
-        const screenshotCanvas = document.createElement('canvas');
-        const screenshotSize = 2048; // 高解像度
-        screenshotCanvas.width = screenshotSize;
-        screenshotCanvas.height = screenshotSize;
-        
-        // Three.jsのレンダラーを一時的に新しいcanvasに切り替え
-        const renderer = (window as unknown as Record<string, unknown>).__threeRenderer as {
-          getSize: (target: { x: number; y: number }) => { x: number; y: number };
-          setSize: (width: number, height: number, updateStyle: boolean) => void;
-          render: (scene: unknown, camera: unknown) => void;
-          domElement: HTMLCanvasElement;
-        };
-        if (renderer) {
-          // 元のサイズを保存
-          const originalSize = renderer.getSize({ x: 0, y: 0 });
-          
-          // レンダラーのサイズを変更
-          renderer.setSize(screenshotSize, screenshotSize, false);
-          
-          // カメラの設定を調整（縦方向により広い範囲を撮影）
-          const camera = (window as unknown as Record<string, unknown>).__threeCamera as {
-            fov: number;
-            position: { x: number; y: number; z: number; clone: () => { x: number; y: number; z: number }; copy: (pos: { x: number; y: number; z: number }) => void; set: (x: number, y: number, z: number) => void };
-            aspect: number;
-            updateProjectionMatrix: () => void;
-          };
-          if (camera) {
-            const originalFov = camera.fov;
-            const originalPosition = camera.position.clone();
-            const originalAspect = camera.aspect;
-            
-            // 3:4の縦長比率に合わせてカメラのアスペクト比を調整
-            camera.aspect = 3 / 4; // 縦長のアスペクト比
-            
-            // より広い視野角と遠い位置に設定（縦方向を重視）
-            camera.fov = 120; // さらに広角（縦方向により多くのオブジェクトを含める）
-            camera.position.set(0, 0, 80); // さらに遠くから撮影
-            camera.updateProjectionMatrix();
-            
-            // レンダリング実行
-            renderer.render((window as unknown as Record<string, unknown>).__threeScene, camera);
-            
-            // スクリーンショット用のデータURLを取得
-            const dataURL = renderer.domElement.toDataURL('image/png', 1.0);
-            
-            // カメラとレンダラーを元に戻す
-            camera.fov = originalFov;
-            camera.position.copy(originalPosition);
-            camera.aspect = originalAspect; // アスペクト比も復元
-            camera.updateProjectionMatrix();
-            renderer.setSize(originalSize.x, originalSize.y, false);
-            
-            // 通常のスクリーンショット処理を続行
-            await processScreenshot(dataURL);
-          } else {
-            // フォールバック: 通常のcanvasからスクリーンショット
-            const dataURL = originalCanvas.toDataURL('image/png', 1.0);
-            await processScreenshot(dataURL);
-          }
-        } else {
-          // フォールバック: 通常のcanvasからスクリーンショット
-          const dataURL = originalCanvas.toDataURL('image/png', 1.0);
-          await processScreenshot(dataURL);
-        }
-      } catch (error) {
-        console.error('Failed to take screenshot:', error);
-        // エラー時もUIを再表示
-        setIsScreenshotMode(false);
-        alert(`スクリーンショットの撮影に失敗しました。エラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }, 500);
-  }, [processScreenshot]);
 
   // モバイル動画再生のためのユーザーインタラクションハンドラー
   useEffect(() => {
@@ -804,19 +929,6 @@ export default function ThreeMemoryScene() {
     };
   }, [userInteracted]);
 
-  // スクリーンショットイベントリスナー
-  useEffect(() => {
-    const handleScreenshot = () => {
-      takeScreenshot();
-    };
-
-    window.addEventListener('takeScreenshot', handleScreenshot);
-    
-    return () => {
-      window.removeEventListener('takeScreenshot', handleScreenshot);
-    };
-  }, [takeScreenshot, processScreenshot]); // 依存関係を追加
-
   return (
     <div className="w-full h-screen" style={{ backgroundColor: currentTheme.backgroundColor }}>
       <Canvas
@@ -829,42 +941,57 @@ export default function ThreeMemoryScene() {
         }}
         gl={{
           antialias: true,
-          alpha: true,
-          preserveDrawingBuffer: true // スクリーンショットのために必要
+          alpha: true
         }}
       >
         <Suspense fallback={<LoadingText progress={0} theme={currentTheme} />}>
-          <SceneContent currentTheme={currentTheme} />
+          <SceneContent 
+            currentTheme={currentTheme}
+            currentLyrics={currentLyrics}
+            currentLyricsIndex={currentLyricsIndex}
+            beatIntensity={beatIntensity}
+            lyricsSegments={lyricsSegments}
+          />
         </Suspense>
       </Canvas>
       
+      {/* 音楽制御パネル */}
+      <MusicPanel
+        onTrackSelected={handleTrackSelected}
+      />
 
-      {/* スクリーンショット用ハッシュタグ（スクリーンショット時のみ表示） */}
-      {isScreenshotMode && (
-        <div 
-          className="fixed bottom-4 right-4 text-lg font-bold"
-          style={{ 
-            zIndex: 10000,
-            fontFamily: 'MS Sans Serif, sans-serif',
-            textShadow: '2px 2px 4px rgba(0,0,0,0.8)',
-            color: currentTheme.textColor
-          }}
-        >
-          #青春はバグだ。
+      {/* Spotify埋め込みプレーヤー - 画面中央下部 */}
+      {currentTrack && (
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40">
+          <SpotifyWebPlayer
+            trackId={currentTrack.id}
+            onPlayerReady={() => {
+              console.log('Spotify埋め込みプレイヤー準備完了');
+            }}
+            onPlaybackState={(isPlaying) => {
+              console.log('再生状態:', isPlaying);
+              if (isPlaying) {
+                // 再生開始時に歌詞表示も開始
+                setIsLyricsPlaying(true);
+                setCurrentLyricsIndex(0);
+              }
+            }}
+            onLyricsStart={() => {
+              console.log('歌詞表示開始');
+              setIsLyricsPlaying(true);
+              setCurrentLyricsIndex(0);
+            }}
+          />
         </div>
       )}
-      
 
-      {/* 操作説明（スクリーンショット時は非表示） */}
-      {!isScreenshotMode && (
-        <div 
-          className="fixed bottom-2 right-2 text-xs pointer-events-none"
-          style={{ color: currentTheme.textColor }}
-        >
-          <p className="hidden sm:block">ドラッグ: 回転 | ホイール: ズーム | 右クリック + ドラッグ: パン</p>
-          <p className="sm:hidden">タッチ: 回転 | ピンチ: ズーム | 2本指ドラッグ: パン</p>
-        </div>
-      )}
+
+      {/* 操作説明 */}
+      <div 
+        className="fixed bottom-2 right-2 text-xs pointer-events-none"
+        style={{ color: currentTheme.textColor }}
+      >
+      </div>
     </div>
   );
 }

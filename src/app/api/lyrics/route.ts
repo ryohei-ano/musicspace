@@ -33,46 +33,80 @@ interface CacheEntry {
 const lyricsCache = new Map<string, CacheEntry>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5分
 
-// シンプルな歌詞抽出関数
+// 改良された歌詞抽出関数（デバッグ強化版）
 async function extractLyricsFromGeniusPage(url: string): Promise<string[]> {
   try {
-    console.log('Extracting lyrics from:', url);
+    console.log('🎵 Extracting lyrics from:', url);
     
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9,ja;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Upgrade-Insecure-Requests': '1',
       }
     });
     
+    console.log(`📡 Response status: ${response.status}`);
+    console.log(`📡 Response headers:`, Object.fromEntries(response.headers.entries()));
+    
     if (!response.ok) {
-      console.error(`Failed to fetch page: ${response.status}`);
+      console.error(`❌ Failed to fetch page: ${response.status} ${response.statusText}`);
       return [];
     }
     
     const html = await response.text();
+    console.log(`📄 HTML length: ${html.length} characters`);
+    console.log(`📄 HTML preview (first 500 chars):`, html.substring(0, 500));
+    
     const $ = load(html);
     
-    // 2025年版のGeniusセレクター
+    // 2025年版の拡張されたGeniusセレクター
     const selectors = [
+      // 最新のセレクター
       '[data-lyrics-container="true"]',
+      '[data-testid="lyrics"]',
       '.Lyrics__Container-sc-1ynbvzw-1',
       '.Lyrics__Container-sc-1ynbvzw-6',
       '.RichText__Container-oz284w-0',
+      '.SongPageLyrics-sc-1ynbvzw-1',
+      '.LyricsBody-sc-1ynbvzw-1',
+      
+      // 汎用セレクター
       '[class*="Lyrics__Container"]',
       '[class*="RichText__Container"]',
-      '.lyrics'
+      '[class*="SongPageLyrics"]',
+      '[class*="LyricsBody"]',
+      '[class*="lyrics"]',
+      
+      // フォールバック
+      '.lyrics',
+      '#lyrics',
+      '.song_body-lyrics',
+      '.lyrics_body'
     ];
     
     const lyrics: string[] = [];
+    let foundSelector = '';
     
     for (const selector of selectors) {
+      console.log(`🔍 Trying selector: ${selector}`);
       const elements = $(selector);
+      console.log(`🔍 Found ${elements.length} elements with selector: ${selector}`);
+      
       if (elements.length > 0) {
-        console.log(`Found lyrics with selector: ${selector}`);
-        elements.each((_, element) => {
+        foundSelector = selector;
+        elements.each((index, element) => {
           const text = $(element).text();
+          console.log(`📝 Element ${index} text length: ${text.length}`);
+          console.log(`📝 Element ${index} preview:`, text.substring(0, 200));
+          
           if (text && text.trim()) {
             const lines = text.split('\n')
               .map(line => line.trim())
@@ -82,10 +116,85 @@ async function extractLyricsFromGeniusPage(url: string): Promise<string[]> {
         });
         
         if (lyrics.length > 0) {
+          console.log(`✅ Found lyrics with selector: ${selector}, total lines: ${lyrics.length}`);
           break;
         }
       }
     }
+    
+    // セレクターで見つからない場合、HTMLから直接検索
+    if (lyrics.length === 0) {
+      console.log('🔍 Trying direct HTML search...');
+      
+      // JSONデータから抽出を試行
+      const jsonPatterns = [
+        /window\.__PRELOADED_STATE__\s*=\s*JSON\.parse\('([^']+)'\)/,
+        /"lyrics":\s*"([^"]+)"/,
+        /"body":\s*{\s*"html":\s*"([^"]+)"/,
+        /"plain":\s*"([^"]+)"/
+      ];
+      
+      for (const pattern of jsonPatterns) {
+        const match = html.match(pattern);
+        if (match) {
+          console.log(`🔍 Found JSON pattern match`);
+          try {
+            let jsonStr = match[1];
+            if (pattern === jsonPatterns[0]) {
+              jsonStr = jsonStr.replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+              const data = JSON.parse(jsonStr);
+              
+              // 歌詞データを探す
+              const findLyrics = (obj: unknown, path = ''): string | null => {
+                if (typeof obj === 'string' && obj.length > 50 && obj.includes('\n')) {
+                  console.log(`🔍 Found lyrics in JSON at path: ${path}`);
+                  return obj;
+                }
+                if (typeof obj === 'object' && obj !== null) {
+                  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+                    if (key.toLowerCase().includes('lyrics') || key.toLowerCase().includes('body')) {
+                      const result = findLyrics(value, `${path}.${key}`);
+                      if (result) return result;
+                    }
+                  }
+                  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+                    const result = findLyrics(value, `${path}.${key}`);
+                    if (result) return result;
+                  }
+                }
+                return null;
+              };
+              
+              const lyricsText = findLyrics(data);
+              if (lyricsText) {
+                const cleanText = lyricsText.replace(/<[^>]*>/g, '').replace(/\\n/g, '\n');
+                const lines = cleanText.split('\n')
+                  .map(line => line.trim())
+                  .filter(line => line.length > 0);
+                lyrics.push(...lines);
+                console.log(`✅ Found lyrics from JSON: ${lines.length} lines`);
+                break;
+              }
+            } else {
+              const cleanText = jsonStr.replace(/\\n/g, '\n').replace(/\\"/g, '"');
+              const lines = cleanText.split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0);
+              if (lines.length > 5) {
+                lyrics.push(...lines);
+                console.log(`✅ Found lyrics from pattern: ${lines.length} lines`);
+                break;
+              }
+            }
+          } catch (jsonError) {
+            console.log('❌ JSON parse failed:', jsonError);
+          }
+        }
+      }
+    }
+    
+    console.log(`📊 Raw lyrics count: ${lyrics.length}`);
+    console.log(`📊 First few raw lyrics:`, lyrics.slice(0, 5));
     
     // 基本的なクリーニング
     const cleanedLyrics = lyrics
@@ -100,17 +209,23 @@ async function extractLyricsFromGeniusPage(url: string): Promise<string[]> {
           /^more on genius/i,
           /^embed$/i,
           /^genius$/i,
+          /^see .* live/i,
+          /^get tickets/i,
+          /^\d+k?$/i, // 数字のみの行
         ];
         
         return !excludePatterns.some(pattern => pattern.test(trimmed));
       })
       .slice(0, 50); // 最大50行
     
-    console.log(`Extracted ${cleanedLyrics.length} lines of lyrics`);
+    console.log(`✅ Final cleaned lyrics count: ${cleanedLyrics.length}`);
+    console.log(`✅ Used selector: ${foundSelector || 'JSON extraction'}`);
+    console.log(`✅ Sample cleaned lyrics:`, cleanedLyrics.slice(0, 3));
+    
     return cleanedLyrics;
     
   } catch (error) {
-    console.error('Lyrics extraction error:', error);
+    console.error('❌ Lyrics extraction error:', error);
     return [];
   }
 }

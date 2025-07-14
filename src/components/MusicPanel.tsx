@@ -127,14 +127,22 @@ export default function MusicPanel({ onTrackSelected }: MusicPanelProps) {
                     className="flex items-center gap-2 p-2 hover:bg-blue-100 cursor-pointer text-xs border-b border-gray-200 last:border-b-0"
                     onClick={() => handleTrackSelect(track)}
                   >
-                    {track.image && (
+                    {track.image ? (
                       <Image 
                         src={track.image} 
                         alt={track.name}
                         width={32}
                         height={32}
                         className="w-8 h-8 object-cover rounded"
+                        onError={(e) => {
+                          console.error('Image load error for track:', track.name, track.image);
+                          e.currentTarget.style.display = 'none';
+                        }}
                       />
+                    ) : (
+                      <div className="w-8 h-8 bg-gray-300 rounded flex items-center justify-center text-xs">
+                        🎵
+                      </div>
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="font-bold text-black truncate">{track.name}</div>

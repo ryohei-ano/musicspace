@@ -11,7 +11,6 @@ import MusicPanel from './MusicPanel';
 import SpotifyWebPlayer from './SpotifyWebPlayer';
 import { SpotifyTrack } from '@/types/music';
 import TypingAnimation from './TypingAnimation';
-import DataVisualization from './DataVisualization';
 import { useFrame } from '@react-three/fiber';
 
 interface Memory {
@@ -633,11 +632,6 @@ function SceneContent({
         />
       ))}
       
-      {/* データ可視化（背景アニメーション） */}
-      <DataVisualization 
-        theme={currentTheme} 
-        beatIntensity={beatIntensity} 
-      />
       
       {/* 3D空間での歌詞表示 */}
       {currentLyrics && lyricsSegments.length > 0 && (
